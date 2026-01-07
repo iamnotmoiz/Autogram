@@ -20,16 +20,11 @@
                             '0%': { opacity: 0, transform: 'scale(0.9)' },
                             '100%': { opacity: 1, transform: 'scale(1)' },
                         },
-                        'slide-in-right': {
-                            '0%': { opacity: 0, transform: 'translateX(20px)' },
-                            '100%': { opacity: 1, transform: 'translateX(0)' },
-                        }
                     },
                     animation: {
                         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         'slide-up': 'slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                        'scale-in': 'scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                        'slide-in-right': 'slide-in-right 0.4s ease-out forwards',
+                        'scale-in': 'scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                     },
                     fontFamily: {
                         sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
@@ -57,24 +52,25 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* Custom scrollbar hiding for cleaner UI */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        body {
-            background-color: black; 
-            margin: 0;
-            /* Prevent bounce effect on iOS */
-            overscroll-behavior-y: none;
-        }
-        /* Glass gradient for roulette fade */
-        .roulette-mask {
-            mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
-            -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        body { background-color: black; margin: 0; overscroll-behavior-y: none; }
+        
+        /* The iOS-style fade mask for the picker */
+        .picker-mask {
+            -webkit-mask-image: linear-gradient(to bottom, 
+                transparent 0%, 
+                black 20%, 
+                black 80%, 
+                transparent 100%
+            );
+            mask-image: linear-gradient(to bottom, 
+                transparent 0%, 
+                black 20%, 
+                black 80%, 
+                transparent 100%
+            );
         }
     </style>
 </head>
@@ -83,7 +79,7 @@
 
     <!-- 4. The Application Logic -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef, useCallback } from 'react';
+        import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
         import { createRoot } from 'react-dom/client';
         import { 
             Instagram, Wand2, Calendar, Settings, LogOut, CheckCircle2, 
@@ -97,43 +93,132 @@
             const audioContextRef = useRef(null);
 
             const playClick = useCallback(() => {
-                // Haptic
-                if (navigator.vibrate) {
-                    navigator.vibrate(5);
-                }
+                if (navigator.vibrate) navigator.vibrate(2); // Lighter vibration
 
-                // Audio
-                if (!audioContextRef.current) {
-                    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                const ctx = audioContextRef.current;
-                
-                // Resume context if suspended (common in browsers)
-                if (ctx.state === 'suspended') {
-                    ctx.resume();
-                }
+                try {
+                    if (!audioContextRef.current) {
+                        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    const ctx = audioContextRef.current;
+                    if (ctx.state === 'suspended') ctx.resume();
 
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
 
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.04);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, ctx.currentTime); // Lower pitch for "thud" sound
+                    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.05);
 
-                gain.gain.setValueAtTime(0.08, ctx.currentTime); // Low volume
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+                    gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
 
-                osc.connect(gain);
-                gain.connect(ctx.destination);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
 
-                osc.start();
-                osc.stop(ctx.currentTime + 0.04);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.05);
+                } catch(e) {}
             }, []);
 
             return playClick;
         };
 
-        // --- Tutorial Component ---
+        // --- NEW iOS 26 Roulette Wheel ---
+        const RouletteWheel = ({ items, selectedValue, onSelect, label, theme }) => {
+            const containerRef = useRef(null);
+            const playClick = usePickerEffects();
+            const ITEM_HEIGHT = 40; // Height of each number
+            const VISIBLE_ITEMS = 5; // How many items visible at once
+            const wheelRadius = ITEM_HEIGHT * 2.5; // Radius for 3D rotation calculation
+
+            // Sync scroll on mount
+            useEffect(() => {
+                if (containerRef.current) {
+                    const index = items.findIndex(i => i.value === selectedValue);
+                    if (index !== -1) {
+                        containerRef.current.scrollTop = index * ITEM_HEIGHT;
+                    }
+                }
+            }, []);
+
+            const handleScroll = () => {
+                if (!containerRef.current) return;
+                const scrollTop = containerRef.current.scrollTop;
+                const index = Math.round(scrollTop / ITEM_HEIGHT);
+                
+                if (index >= 0 && index < items.length) {
+                    const item = items[index];
+                    if (item && item.value !== selectedValue) {
+                        onSelect(item.value);
+                        playClick();
+                    }
+                }
+            };
+
+            const bgGlass = theme === 'dark' ? 'bg-white/10' : 'bg-black/5';
+            const textActive = theme === 'dark' ? 'text-white' : 'text-black';
+            const textPassive = 'text-neutral-500';
+
+            return (
+                <div className="flex flex-col items-center gap-1 relative z-10 w-16">
+                    {label && <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">{label}</span>}
+                    
+                    <div 
+                        className="relative w-full overflow-hidden picker-mask"
+                        style={{ height: `${ITEM_HEIGHT * VISIBLE_ITEMS}px` }}
+                    >
+                        {/* Center Glass Selection Bar */}
+                        <div 
+                            className={`absolute top-1/2 left-0 right-0 -translate-y-1/2 rounded-md pointer-events-none z-0 border-y border-white/5 ${bgGlass}`}
+                            style={{ height: `${ITEM_HEIGHT}px` }}
+                        />
+
+                        {/* Scroll Container */}
+                        <div 
+                            ref={containerRef}
+                            className="h-full w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative z-10"
+                            onScroll={handleScroll}
+                            style={{ 
+                                // Padding ensures the first and last item can reach the center
+                                paddingBlock: `${(ITEM_HEIGHT * VISIBLE_ITEMS - ITEM_HEIGHT) / 2}px` 
+                            }}
+                        >
+                            {items.map((item, i) => {
+                                const isSelected = item.value === selectedValue;
+                                
+                                // Calculate rotation for 3D effect based on index difference (simulated)
+                                // In a real 3D engine we'd map scroll position, but CSS state works well for snapping
+                                const offset = items.findIndex(x => x.value === selectedValue) - i;
+                                const rotateX = offset * 25; // 25deg rotation per item away from center
+
+                                return (
+                                    <div 
+                                        key={item.value}
+                                        className={`flex items-center justify-center snap-center cursor-pointer transition-all duration-200 ease-out select-none ${isSelected ? `font-semibold text-xl ${textActive}` : `font-medium text-lg ${textPassive} opacity-50`}`}
+                                        style={{ 
+                                            height: `${ITEM_HEIGHT}px`,
+                                            transform: `perspective(500px) rotateX(${rotateX}deg) scale(${isSelected ? 1.1 : 0.9})`,
+                                            transformOrigin: 'center center'
+                                        }}
+                                        onClick={() => {
+                                            if (containerRef.current) {
+                                                containerRef.current.scrollTo({
+                                                    top: i * ITEM_HEIGHT,
+                                                    behavior: 'smooth'
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        {item.label}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const TutorialModal = ({ onClose, theme }) => {
             const [slide, setSlide] = useState(0);
             const [isExiting, setIsExiting] = useState(false);
@@ -141,22 +226,22 @@
             const slides = [
                 {
                     title: "Welcome to AutoGram",
-                    desc: "Your autonomous AI social media manager. Let's get you set up with the superpowers.",
+                    desc: "Your autonomous AI social media manager.",
                     icon: <Wand2 size={48} className="text-indigo-500" />
                 },
                 {
                     title: "Auto-Pilot Mode",
-                    desc: "Set a topic and frequency. AutoGram will generate unique, high-fidelity images and captions automatically while you sleep.",
+                    desc: "Set a topic and frequency. AutoGram generates content automatically.",
                     icon: <Zap size={48} className="text-yellow-500" />
                 },
                 {
                     title: "Smart Scheduler",
-                    desc: "Review your content queue in the Calendar tab. See what's upcoming and track your posted history in one place.",
+                    desc: "Review your content queue and history in the Calendar tab.",
                     icon: <Calendar size={48} className="text-green-500" />
                 },
                 {
                     title: "Unlock Pro Quality",
-                    desc: "For 8K images and smart captions, add your Google Gemini API Key in Settings > AI Configuration.",
+                    desc: "Add your Google Gemini API Key in Settings for pro-level generation.",
                     icon: <Key size={48} className="text-pink-500" />
                 }
             ];
@@ -176,54 +261,26 @@
             const bgClass = theme === 'dark' ? 'bg-neutral-900/95 border-white/10 text-white' : 'bg-white/95 border-black/10 text-neutral-900';
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
 
-            // Animation classes based on state
             const contentTransition = isExiting 
                 ? "opacity-0 -translate-x-4 scale-95 duration-300 ease-in" 
                 : "opacity-100 translate-x-0 scale-100 duration-500 ease-spring delay-75";
-            
-            const iconTransition = isExiting
-                ? "opacity-0 rotate-[-45deg] scale-50 duration-300"
-                : "opacity-100 rotate-0 scale-100 duration-500 ease-spring delay-100";
 
             return (
                 <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 animate-scale-in">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-500" onClick={onClose}></div>
                     <div className={`relative w-full max-w-sm rounded-[32px] border p-8 shadow-2xl overflow-hidden flex flex-col items-center text-center transition-all duration-500 ease-spring ${bgClass}`}>
-                        
-                        {/* Skip Button */}
-                        <button onClick={onClose} className={`absolute top-6 right-6 text-xs font-bold uppercase tracking-widest hover:opacity-70 transition-opacity ${textMuted}`}>
-                            Skip
-                        </button>
-
-                        {/* Animated Icon */}
-                        <div className="mt-8 mb-6 h-20 flex items-center justify-center perspective-1000">
-                            <div className={`transform transition-all ${iconTransition}`}>
-                                {slides[slide].icon}
-                            </div>
-                        </div>
-                        
-                        {/* Animated Text */}
+                        <button onClick={onClose} className={`absolute top-6 right-6 text-xs font-bold uppercase tracking-widest hover:opacity-70 ${textMuted}`}>Skip</button>
+                        <div className={`mt-8 mb-6 h-20 flex items-center justify-center transform transition-all ${contentTransition}`}>{slides[slide].icon}</div>
                         <div className={`transform transition-all ${contentTransition}`}>
                             <h3 className="text-2xl font-bold mb-3">{slides[slide].title}</h3>
-                            <p className={`text-sm leading-relaxed mb-8 ${textMuted}`}>
-                                {slides[slide].desc}
-                            </p>
+                            <p className={`text-sm leading-relaxed mb-8 ${textMuted}`}>{slides[slide].desc}</p>
                         </div>
-
-                        {/* Dots */}
                         <div className="flex gap-2 mb-8">
                             {slides.map((_, i) => (
                                 <div key={i} className={`h-2 rounded-full transition-all duration-500 ease-spring ${i === slide ? (theme === 'dark' ? 'bg-white w-6' : 'bg-black w-6') : (theme === 'dark' ? 'bg-white/20 w-2' : 'bg-black/20 w-2')}`} />
                             ))}
                         </div>
-
-                        {/* Button */}
-                        <button 
-                            onClick={handleNext}
-                            className={`w-full py-4 rounded-2xl font-bold text-sm transition-transform active:scale-95 ${theme === 'dark' ? 'bg-white text-black hover:bg-neutral-200' : 'bg-black text-white hover:bg-neutral-800'}`}
-                        >
-                            {slide === slides.length - 1 ? "Get Started" : "Next"}
-                        </button>
+                        <button onClick={handleNext} className={`w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>{slide === slides.length - 1 ? "Get Started" : "Next"}</button>
                     </div>
                 </div>
             );
@@ -247,7 +304,6 @@
                 }
             ]);
 
-            // Auto-Pilot Global State
             const [autoPilot, setAutoPilot] = useState({
                 active: false,
                 topic: '',
@@ -269,11 +325,7 @@
                     });
                 }
                 setIsConnected(true);
-                
-                // Check tutorial status
-                if (!localStorage.getItem('tutorial_seen')) {
-                    setTimeout(() => setShowTutorial(true), 800);
-                }
+                if (!localStorage.getItem('tutorial_seen')) setTimeout(() => setShowTutorial(true), 800);
             };
 
             const handleCloseTutorial = () => {
@@ -291,37 +343,24 @@
                 setActiveTab('schedule');
             };
 
-            // Smart Image Generator (Google First -> Pollinations Fallback)
             const generateImage = async (prompt, seed) => {
-                // 1. Try Google Imagen if API Key is present
                 if (apiKey) {
                     try {
                         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                instances: [{ prompt: prompt }],
-                                parameters: { sampleCount: 1 }
-                            })
+                            body: JSON.stringify({ instances: [{ prompt: prompt }], parameters: { sampleCount: 1 } })
                         });
-                        
                         if (response.ok) {
                             const data = await response.json();
                             const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
-                            if (base64Image) {
-                                return `data:image/png;base64,${base64Image}`;
-                            }
+                            if (base64Image) return `data:image/png;base64,${base64Image}`;
                         }
-                    } catch (e) {
-                        console.warn("Google Imagen generation failed, falling back to default.", e);
-                    }
+                    } catch (e) { console.warn("Google Imagen failed", e); }
                 }
-
-                // 2. Default Fallback (Pollinations)
                 return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1350&nologo=true&seed=${seed}`;
             };
 
-            // Helper to generate caption using Gemini
             const generateGeminiCaption = async (topic, style) => {
                 if (!apiKey) return null;
                 try {
@@ -329,42 +368,29 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{
-                                parts: [{
-                                    text: `Write a short, engaging Instagram caption for a photo about "${topic}" with a visual style of "${style}". Include 3-5 relevant hashtags. Return only the plain text of the caption.`
-                                }]
-                            }]
+                            contents: [{ parts: [{ text: `Write a short, engaging Instagram caption for "${topic}" in style "${style}" with 3 hashtags.` }] }]
                         })
                     });
                     const data = await response.json();
                     return data.candidates?.[0]?.content?.parts?.[0]?.text;
-                } catch (e) {
-                    console.error("Gemini API Error", e);
-                    return null;
-                }
+                } catch (e) { return null; }
             };
 
-            // Triggered when Auto-Pilot timer hits 0
             const handleAutoPost = async () => {
                 const now = new Date();
-                
-                // Enhanced randomization
-                const angles = ["wide angle shot", "close up macro", "aerial view", "low angle", "eye level", "dutch angle", "isometric view"];
-                const lighting = ["cinematic lighting", "golden hour", "neon lights", "studio lighting", "natural soft light", "dramatic shadows", "volumetric lighting"];
-                const styles = ["hyper realistic", "highly detailed", "photorealistic", "4k", "8k", "sharp focus", "vivid colors"];
-                
-                const randomAngle = angles[Math.floor(Math.random() * angles.length)];
-                const randomLight = lighting[Math.floor(Math.random() * lighting.length)];
-                const randomStyle = styles[Math.floor(Math.random() * styles.length)];
+                const angles = ["wide angle", "macro", "aerial", "low angle"];
+                const lighting = ["cinematic", "golden hour", "neon", "natural"];
+                const styles = ["hyper realistic", "4k", "8k", "vivid"];
+                const rAngle = angles[Math.floor(Math.random() * angles.length)];
+                const rLight = lighting[Math.floor(Math.random() * lighting.length)];
+                const rStyle = styles[Math.floor(Math.random() * styles.length)];
                 const seed = Math.floor(Math.random() * 1000000);
+                const prompt = `${autoPilot.topic}, ${rAngle}, ${rLight}, ${rStyle}`;
 
-                const prompt = `${autoPilot.topic}, ${randomAngle}, ${randomLight}, ${randomStyle}`;
-
-                let captionText = `🤖 Auto-Pilot: ${autoPilot.topic} \n\nGenerated automatically via AutoGram. #AI #AutoPilot #${autoPilot.topic.replace(/\s+/g, '')}`;
-                const geminiCaption = await generateGeminiCaption(autoPilot.topic, randomStyle);
+                let captionText = `🤖 Auto-Pilot: ${autoPilot.topic} #AI #${autoPilot.topic.replace(/\s+/g, '')}`;
+                const geminiCaption = await generateGeminiCaption(autoPilot.topic, rStyle);
                 if (geminiCaption) captionText = geminiCaption;
 
-                // Use the new Unified Generator
                 const imageUrl = await generateImage(prompt, seed);
 
                 const newPost = {
@@ -374,242 +400,73 @@
                     date: now.toISOString(),
                     status: 'posted'
                 };
-
                 setScheduledPosts(prev => [newPost, ...prev].sort((a, b) => new Date(a.date) - new Date(b.date)));
-
-                const nextTime = new Date(Date.now() + autoPilot.intervalMs); 
                 
-                setAutoPilot(prev => ({
-                    ...prev,
-                    nextPostTime: nextTime
-                }));
+                setAutoPilot(prev => ({ ...prev, nextPostTime: new Date(Date.now() + autoPilot.intervalMs) }));
             };
 
-            const handleDeletePost = (id) => {
-                setScheduledPosts(scheduledPosts.filter(p => p.id !== id));
-            };
-
-            const toggleTheme = () => {
-                setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-            };
-
+            const handleDeletePost = (id) => setScheduledPosts(scheduledPosts.filter(p => p.id !== id));
+            const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
             const bgClass = theme === 'dark' ? 'bg-black text-white' : 'bg-neutral-100 text-neutral-900';
             const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/10' : 'bg-white/60 border-black/5';
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
 
-            if (!isConnected) {
-                return <LoginScreen onLogin={handleLogin} theme={theme} />;
-            }
+            if (!isConnected) return <LoginScreen onLogin={handleLogin} theme={theme} />;
 
             return (
-                <div className={`min-h-screen font-sans selection:bg-indigo-500 selection:text-white flex flex-col md:flex-row relative overflow-hidden transition-colors duration-500 ${bgClass}`}>
-                
-                {/* Background */}
-                <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                    <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] animate-pulse-slow ${theme === 'dark' ? 'bg-indigo-600/20' : 'bg-indigo-400/20'}`}></div>
-                    <div className={`absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] animate-pulse-slow delay-1000 ${theme === 'dark' ? 'bg-fuchsia-600/20' : 'bg-fuchsia-400/20'}`}></div>
-                    <div className={`absolute top-[20%] right-[20%] w-[30%] h-[30%] rounded-full blur-[100px] ${theme === 'dark' ? 'bg-blue-600/10' : 'bg-blue-400/10'}`}></div>
-                </div>
-
-                {/* Auto-Pilot Notification Bar */}
-                {autoPilot.active && (
-                    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[95%] max-w-md px-2 animate-slide-up">
-                        <AutoPilotStatus 
-                            autoPilot={autoPilot} 
-                            theme={theme} 
-                            onPostTrigger={handleAutoPost} 
-                            onStop={() => setAutoPilot(prev => ({ ...prev, active: false, nextPostTime: null }))}
-                        />
-                    </div>
-                )}
-
-                {/* Desktop Sidebar */}
-                <aside className={`hidden md:flex flex-col w-24 lg:w-72 fixed left-4 top-4 bottom-4 z-50 backdrop-blur-2xl border rounded-[32px] shadow-2xl p-6 transition-all duration-300 ${glassClass}`}>
-                    <div className="flex items-center gap-3 mb-10 pl-2">
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                        <Wand2 size={20} className="text-white" />
-                    </div>
-                    <span className="hidden lg:block text-xl font-bold tracking-tight">
-                        AutoGram
-                    </span>
+                <div className={`min-h-screen font-sans flex flex-col md:flex-row relative overflow-hidden transition-colors duration-500 ${bgClass}`}>
+                    <div className="fixed inset-0 z-0 pointer-events-none">
+                        <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] animate-pulse-slow ${theme === 'dark' ? 'bg-indigo-600/20' : 'bg-indigo-400/20'}`}></div>
+                        <div className={`absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] animate-pulse-slow delay-1000 ${theme === 'dark' ? 'bg-fuchsia-600/20' : 'bg-fuchsia-400/20'}`}></div>
                     </div>
 
-                    <nav className="flex flex-col gap-2 flex-1">
-                    <NavItem icon={Wand2} label="Generator" active={activeTab === 'generate'} onClick={() => setActiveTab('generate')} theme={theme} />
-                    <NavItem icon={Calendar} label="Scheduler" count={scheduledPosts.filter(p => new Date(p.date) > new Date()).length} active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} theme={theme} />
-                    <NavItem icon={BarChart3} label="Analytics" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} theme={theme} />
-                    <NavItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} theme={theme} />
+                    {autoPilot.active && (
+                        <div className="fixed top-4 left-4 right-4 z-[100] mx-auto max-w-md animate-slide-up">
+                            <AutoPilotStatus autoPilot={autoPilot} theme={theme} onPostTrigger={handleAutoPost} onStop={() => setAutoPilot(prev => ({ ...prev, active: false, nextPostTime: null }))} />
+                        </div>
+                    )}
+
+                    <aside className={`hidden md:flex flex-col w-24 lg:w-72 fixed left-4 top-4 bottom-4 z-50 backdrop-blur-2xl border rounded-[32px] shadow-2xl p-6 ${glassClass}`}>
+                        <div className="flex items-center gap-3 mb-10 pl-2">
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg"><Wand2 size={20} className="text-white" /></div>
+                            <span className="hidden lg:block text-xl font-bold tracking-tight">AutoGram</span>
+                        </div>
+                        <nav className="flex flex-col gap-2 flex-1">
+                            <NavItem icon={Wand2} label="Generator" active={activeTab === 'generate'} onClick={() => setActiveTab('generate')} theme={theme} />
+                            <NavItem icon={Calendar} label="Scheduler" count={scheduledPosts.filter(p => new Date(p.date) > new Date()).length} active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} theme={theme} />
+                            <NavItem icon={BarChart3} label="Analytics" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} theme={theme} />
+                            <NavItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} theme={theme} />
+                        </nav>
+                        <div className="lg:hidden mt-auto flex justify-center"><img src={user.avatar} className={`w-8 h-8 rounded-full border ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`} alt="Profile" /></div>
+                    </aside>
+
+                    <main className="flex-1 md:ml-32 lg:ml-80 p-4 md:p-6 pb-40 relative z-10 h-screen overflow-y-auto no-scrollbar scroll-smooth">
+                        <div className="max-w-6xl mx-auto space-y-8 pt-12 md:pt-4">
+                            <div key={activeTab} className="animate-slide-up">
+                                {activeTab === 'generate' && <Generator user={user} onSchedule={handleAddPost} theme={theme} autoPilot={autoPilot} setAutoPilot={setAutoPilot} setShowAutoPilotModal={setShowAutoPilotModal} setPendingAutoTopic={setPendingAutoTopic} pendingAutoTopic={pendingAutoTopic} generateGeminiCaption={generateGeminiCaption} generateImage={generateImage} />}
+                                {activeTab === 'schedule' && <Scheduler posts={scheduledPosts} onDelete={handleDeletePost} theme={theme} />}
+                                {activeTab === 'analytics' && <Analytics user={user} theme={theme} />}
+                                {activeTab === 'settings' && <SettingsTab user={user} theme={theme} toggleTheme={toggleTheme} onLogout={() => setIsConnected(false)} apiKey={apiKey} onSaveApiKey={handleSaveApiKey} onShowTutorial={() => setShowTutorial(true)} />}
+                            </div>
+                        </div>
+                    </main>
+
+                    <nav className={`md:hidden fixed bottom-6 left-4 right-4 h-16 backdrop-blur-xl border rounded-full shadow-2xl z-50 flex items-center justify-around px-2 ${glassClass} ${theme === 'dark' ? 'bg-neutral-900/90' : 'bg-white/90'}`}>
+                        <MobileNavItem icon={Wand2} active={activeTab === 'generate'} onClick={() => setActiveTab('generate')} theme={theme} />
+                        <MobileNavItem icon={Calendar} active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} count={scheduledPosts.length} theme={theme} />
+                        <MobileNavItem icon={BarChart3} active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} theme={theme} />
+                        <MobileNavItem icon={Settings} active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} theme={theme} />
                     </nav>
 
-                    <div className={`hidden lg:flex flex-col gap-3 mt-auto p-4 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-black/5 border-black/5'}`}>
-                    <div className="flex items-center gap-3">
-                        <img src={user.avatar} className={`w-10 h-10 rounded-full object-cover border-2 ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`} alt="Profile" />
-                        <div className="overflow-hidden">
-                        <p className="text-sm font-semibold truncate">{user.username}</p>
-                        <p className={`text-[10px] truncate uppercase tracking-wider ${textMuted}`}>{user.followers} followers</p>
-                        </div>
-                    </div>
-                    </div>
-                    
-                    <div className="lg:hidden mt-auto flex justify-center">
-                        <img src={user.avatar} className={`w-8 h-8 rounded-full object-cover border ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`} alt="Profile" />
-                    </div>
-                </aside>
+                    {showAutoPilotModal && <AutoPilotConfigModal theme={theme} onClose={() => setShowAutoPilotModal(false)} onConfirm={(intervalMs) => {
+                        setAutoPilot({ active: true, topic: pendingAutoTopic, intervalMs: intervalMs, nextPostTime: new Date(Date.now() + intervalMs) });
+                        setShowAutoPilotModal(false);
+                    }} />}
 
-                {/* Main Content Area - Increased pb-40 to prevent content hiding behind dock */}
-                <main className="flex-1 md:ml-32 lg:ml-80 p-4 md:p-6 pb-40 md:pb-6 relative z-10 h-screen overflow-y-auto no-scrollbar scroll-smooth">
-                    <div className="max-w-6xl mx-auto space-y-8 pt-12 md:pt-4">
-                        {/* Page Transition Wrapper */}
-                        <div key={activeTab} className="animate-slide-up">
-                            {activeTab === 'generate' && (
-                                <Generator 
-                                    user={user} 
-                                    onSchedule={handleAddPost} 
-                                    theme={theme} 
-                                    autoPilot={autoPilot} 
-                                    setAutoPilot={setAutoPilot}
-                                    setShowAutoPilotModal={setShowAutoPilotModal}
-                                    setPendingAutoTopic={setPendingAutoTopic}
-                                    pendingAutoTopic={pendingAutoTopic}
-                                    generateGeminiCaption={generateGeminiCaption}
-                                    generateImage={generateImage} // Pass the unified generator
-                                />
-                            )}
-                            {activeTab === 'schedule' && <Scheduler posts={scheduledPosts} onDelete={handleDeletePost} theme={theme} />}
-                            {activeTab === 'analytics' && <Analytics user={user} theme={theme} />}
-                            {activeTab === 'settings' && (
-                                <SettingsTab 
-                                    user={user} 
-                                    theme={theme} 
-                                    toggleTheme={toggleTheme} 
-                                    onLogout={() => setIsConnected(false)} 
-                                    apiKey={apiKey} 
-                                    onSaveApiKey={handleSaveApiKey}
-                                    onShowTutorial={() => setShowTutorial(true)} 
-                                />
-                            )}
-                        </div>
-                    </div>
-                </main>
-
-                {/* Mobile Bottom Navigation */}
-                <nav className={`md:hidden fixed bottom-6 left-4 right-4 h-16 backdrop-blur-xl border rounded-full shadow-2xl z-50 flex items-center justify-around px-2 ${glassClass} ${theme === 'dark' ? 'bg-neutral-900/90' : 'bg-white/90'}`}>
-                    <MobileNavItem icon={Wand2} active={activeTab === 'generate'} onClick={() => setActiveTab('generate')} theme={theme} />
-                    <MobileNavItem icon={Calendar} active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} count={scheduledPosts.length} theme={theme} />
-                    <MobileNavItem icon={BarChart3} active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} theme={theme} />
-                    <MobileNavItem icon={Settings} active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} theme={theme} />
-                </nav>
-
-                {/* Auto Pilot Frequency Modal */}
-                {showAutoPilotModal && (
-                    <AutoPilotConfigModal 
-                        theme={theme}
-                        onClose={() => setShowAutoPilotModal(false)}
-                        onConfirm={(intervalMs) => {
-                            const nextTime = new Date(Date.now() + intervalMs);
-                            setAutoPilot({
-                                active: true,
-                                topic: pendingAutoTopic,
-                                intervalMs: intervalMs,
-                                nextPostTime: nextTime
-                            });
-                            setShowAutoPilotModal(false);
-                        }}
-                    />
-                )}
-
-                {/* Tutorial Modal */}
-                {showTutorial && <TutorialModal onClose={handleCloseTutorial} theme={theme} />}
+                    {showTutorial && <TutorialModal onClose={handleCloseTutorial} theme={theme} />}
                 </div>
             );
         };
-
-        // --- Roulette Component for iOS style Selection ---
-        const RouletteWheel = ({ items, selectedValue, onSelect, label, theme }) => {
-            const containerRef = useRef(null);
-            const playClick = usePickerEffects();
-            const itemHeight = 44; // Adjusted to match h-[44px]
-            const isScrolling = useRef(false);
-            const scrollTimeout = useRef(null);
-
-            // Initial Scroll
-            useEffect(() => {
-                if (containerRef.current) {
-                    const selectedIndex = items.findIndex(i => i.value === selectedValue);
-                    if (selectedIndex >= 0) {
-                        containerRef.current.scrollTop = selectedIndex * itemHeight;
-                    }
-                }
-            }, []); // Only run once on mount
-
-            const handleScroll = () => {
-                if (!containerRef.current) return;
-                
-                const scrollTop = containerRef.current.scrollTop;
-                const index = Math.round(scrollTop / itemHeight);
-                
-                // Play sound if index changes significantly (debounced mostly by math)
-                // In a real physics engine we'd track velocity, but this works for basic snapping
-                if (items[index] && items[index].value !== selectedValue) {
-                    playClick();
-                    onSelect(items[index].value);
-                }
-
-                // Snap logic helper
-                clearTimeout(scrollTimeout.current);
-                scrollTimeout.current = setTimeout(() => {
-                    // Snap to nearest
-                    containerRef.current.scrollTo({
-                        top: index * itemHeight,
-                        behavior: 'smooth'
-                    });
-                }, 150);
-            };
-
-            return (
-                <div className="flex flex-col items-center relative group">
-                    {label && <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-3">{label}</span>}
-                    <div className="relative h-48 w-16 overflow-hidden">
-                        {/* Gradient Mask for 3D effect */}
-                        <div className="absolute inset-0 pointer-events-none z-20 roulette-mask"></div>
-                        
-                        {/* Selection Bar (Glass) */}
-                        <div className={`absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[44px] rounded-lg pointer-events-none z-10 border-y ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}></div>
-
-                        <div 
-                            ref={containerRef}
-                            className="h-full w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative z-0 py-[74px] flex flex-col items-center" 
-                            style={{ scrollBehavior: 'auto' }} 
-                            onScroll={handleScroll}
-                        >
-                            {items.map((item) => (
-                                <div 
-                                    key={item.value} 
-                                    onClick={() => {
-                                        onSelect(item.value);
-                                        const idx = items.findIndex(i => i.value === item.value);
-                                        if (containerRef.current) {
-                                            playClick();
-                                            containerRef.current.scrollTo({
-                                                top: idx * itemHeight,
-                                                behavior: 'smooth'
-                                            });
-                                        }
-                                    }}
-                                    className={`h-[44px] w-full flex items-center justify-center snap-center cursor-pointer transition-all duration-200 select-none ${item.value === selectedValue ? (theme === 'dark' ? 'text-white font-medium text-xl' : 'text-black font-medium text-xl') : 'text-neutral-500 text-lg opacity-60'}`}
-                                    style={{
-                                        transform: item.value === selectedValue ? 'scale(1.1)' : 'scale(0.9) rotateX(20deg)',
-                                        opacity: item.value === selectedValue ? 1 : 0.4
-                                    }}
-                                >
-                                    {item.label}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )
-        }
 
         const AutoPilotStatus = ({ autoPilot, theme, onPostTrigger, onStop }) => {
             const [timeLeft, setTimeLeft] = useState("");
@@ -620,50 +477,30 @@
                     if (autoPilot.nextPostTime) {
                         const now = new Date();
                         const diff = autoPilot.nextPostTime - now;
-                        
                         if (diff > 0) {
                             triggerLock.current = false;
-                            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                            setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+                            const h = Math.floor((diff % (1000*60*60*24))/(1000*60*60));
+                            const m = Math.floor((diff % (1000*60*60))/(1000*60));
+                            const s = Math.floor((diff % (1000*60))/1000);
+                            setTimeLeft(`${h}h ${m}m ${s}s`);
                         } else {
                             setTimeLeft("Posting...");
-                            if (!triggerLock.current) {
-                                triggerLock.current = true;
-                                onPostTrigger();
-                            }
+                            if (!triggerLock.current) { triggerLock.current = true; onPostTrigger(); }
                         }
                     }
                 }, 1000);
                 return () => clearInterval(interval);
-            }, [autoPilot.nextPostTime, onPostTrigger]);
+            }, [autoPilot.nextPostTime]);
 
             return (
                 <div className="bg-black text-white rounded-full pl-4 pr-2 py-2 shadow-2xl border border-white/10 flex items-center justify-between animate-in slide-in-from-top-4 duration-500 gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
-                            <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-50"></div>
-                        </div>
-                        <div>
-                            <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider leading-none">Auto-Pilot</div>
-                            <div className="text-xs font-semibold leading-tight truncate max-w-[120px]">{autoPilot.topic}</div>
-                        </div>
+                        <div className="relative"><div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div><div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-50"></div></div>
+                        <div><div className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider leading-none">Auto-Pilot</div><div className="text-xs font-semibold leading-tight truncate max-w-[120px]">{autoPilot.topic}</div></div>
                     </div>
-                    
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
-                            <Clock size={12} className="text-neutral-300" />
-                            <span className="text-xs font-mono font-medium min-w-[60px] text-center">{timeLeft}</span>
-                        </div>
-                        <button 
-                            onClick={onStop}
-                            className="p-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-full transition-all active:scale-95"
-                            title="Stop Auto-Pilot"
-                        >
-                            <Square size={12} fill="currentColor" />
-                        </button>
+                        <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full"><Clock size={12} className="text-neutral-300" /><span className="text-xs font-mono font-medium min-w-[60px] text-center">{timeLeft}</span></div>
+                        <button onClick={onStop} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-full transition-all active:scale-95"><Square size={12} fill="currentColor" /></button>
                     </div>
                 </div>
             );
@@ -673,23 +510,17 @@
             const [hours, setHours] = useState(0);
             const [minutes, setMinutes] = useState(0);
             const [seconds, setSeconds] = useState(30);
-
-            // Helpers for Roulette Items
-            const hourItems = Array.from({length: 25}, (_, i) => ({ value: i, label: i.toString() }));
-            const minSecItems = Array.from({length: 60}, (_, i) => ({ value: i, label: i.toString().padStart(2, '0') }));
+            const hourItems = useMemo(() => Array.from({length: 25}, (_, i) => ({ value: i, label: i.toString() })), []);
+            const minSecItems = useMemo(() => Array.from({length: 60}, (_, i) => ({ value: i, label: i.toString().padStart(2, '0') })), []);
 
             const handleStart = () => {
                 const totalMs = ((hours * 60 * 60) + (minutes * 60) + seconds) * 1000;
-                if (totalMs < 30000) {
-                    alert("Minimum frequency is 30 seconds.");
-                    return;
-                }
+                if (totalMs < 30000) return alert("Minimum frequency is 30 seconds.");
                 onConfirm(totalMs);
             };
 
             const bgClass = theme === 'dark' ? 'bg-neutral-900 border-white/10' : 'bg-white border-black/10';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
-            const textMuted = theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400';
 
             return (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4 animate-scale-in">
@@ -697,31 +528,18 @@
                     <div className={`${bgClass} border p-6 md:p-8 rounded-t-[32px] md:rounded-[32px] w-full max-w-md shadow-2xl relative animate-in slide-in-from-bottom-10 duration-300`}>
                         <div className="flex justify-between items-center mb-6">
                             <h3 className={`text-2xl font-bold ${textMain}`}>Auto-Pilot Frequency</h3>
-                            <button onClick={onClose} className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'}`}>
-                                <X size={20} className={textMain}/>
-                            </button>
+                            <button onClick={onClose} className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'}`}><X size={20} className={textMain}/></button>
                         </div>
-
                         <div className="space-y-8">
-                            <div className="bg-blue-500/10 p-4 rounded-2xl flex gap-3 text-sm text-blue-400 border border-blue-500/20">
-                                <Zap className="shrink-0 mt-0.5" size={18} />
-                                <p>Set generation interval. Minimum 30s.</p>
-                            </div>
-
-                            <div className={`rounded-3xl p-6 flex items-center justify-center gap-6 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
+                            <div className="bg-blue-500/10 p-4 rounded-2xl flex gap-3 text-sm text-blue-400 border border-blue-500/20"><Zap className="shrink-0 mt-0.5" size={18} /><p>Set generation interval. Minimum 30s.</p></div>
+                            <div className={`rounded-3xl p-6 flex items-center justify-center gap-2 md:gap-6 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
                                 <RouletteWheel items={hourItems} selectedValue={hours} onSelect={setHours} label="Hours" theme={theme} />
-                                <div className="h-16 w-[1px] bg-white/10"></div>
+                                <span className="text-2xl font-light opacity-30 mt-4">:</span>
                                 <RouletteWheel items={minSecItems} selectedValue={minutes} onSelect={setMinutes} label="Mins" theme={theme} />
-                                <div className="h-16 w-[1px] bg-white/10"></div>
+                                <span className="text-2xl font-light opacity-30 mt-4">:</span>
                                 <RouletteWheel items={minSecItems} selectedValue={seconds} onSelect={setSeconds} label="Secs" theme={theme} />
                             </div>
-
-                            <button 
-                                onClick={handleStart} 
-                                className={`w-full h-14 rounded-2xl font-bold transition-all active:scale-95 text-lg flex items-center justify-center gap-2 ${theme === 'dark' ? 'bg-white hover:bg-neutral-200 text-black' : 'bg-black hover:bg-neutral-800 text-white'}`}
-                            >
-                                <Play size={20} fill="currentColor" /> Start Auto-Pilot
-                            </button>
+                            <button onClick={handleStart} className={`w-full h-14 rounded-2xl font-bold transition-all active:scale-95 text-lg flex items-center justify-center gap-2 ${theme === 'dark' ? 'bg-white hover:bg-neutral-200 text-black' : 'bg-black hover:bg-neutral-800 text-white'}`}><Play size={20} fill="currentColor" /> Start Auto-Pilot</button>
                         </div>
                     </div>
                 </div>
@@ -732,73 +550,29 @@
             const [loading, setLoading] = useState(false);
             const [mode, setMode] = useState('demo');
             const [formData, setFormData] = useState({ username: '', followers: '100', avatar: '' });
-
-            const handleDemoLogin = () => {
-                setLoading(true);
-                setTimeout(() => onLogin(null), 1500);
-            };
-
+            const handleDemoLogin = () => { setLoading(true); setTimeout(() => onLogin(null), 1500); };
             const handleCustomLogin = (e) => {
                 e.preventDefault();
                 if(!formData.username) return;
                 setLoading(true);
-                setTimeout(() => {
-                    onLogin({
-                        username: formData.username,
-                        name: formData.username,
-                        followers: formData.followers,
-                        avatar: formData.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${formData.username}`
-                    });
-                }, 1000);
+                setTimeout(() => onLogin({ username: formData.username, name: formData.username, followers: formData.followers, avatar: formData.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${formData.username}` }), 1000);
             };
 
             return (
                 <div className="min-h-screen bg-black flex items-center justify-center p-6 relative overflow-hidden font-sans">
-                <div className="absolute top-[-20%] left-[-10%] w-[80%] h-[80%] bg-indigo-600/20 rounded-full blur-[150px] animate-pulse-slow"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-fuchsia-600/20 rounded-full blur-[150px] animate-pulse-slow delay-700"></div>
-
-                <div className="w-full max-w-sm bg-white/5 backdrop-blur-3xl border border-white/10 p-8 rounded-[40px] shadow-2xl relative z-10">
-                    <div className="text-center mb-10">
-                        <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-3xl mx-auto mb-6 flex items-center justify-center shadow-lg shadow-indigo-500/30 transform rotate-3">
-                        <Instagram className="text-white w-10 h-10" />
-                        </div>
-                        <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">AutoGram</h1>
-                        <p className="text-neutral-400 text-sm">Next-gen automation for creators.</p>
+                    <div className="absolute inset-0 z-0"><div className="absolute top-[-20%] left-[-10%] w-[80%] h-[80%] bg-indigo-600/20 rounded-full blur-[150px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-fuchsia-600/20 rounded-full blur-[150px]"></div></div>
+                    <div className="w-full max-w-sm bg-white/5 backdrop-blur-3xl border border-white/10 p-8 rounded-[40px] shadow-2xl relative z-10">
+                        <div className="text-center mb-10"><div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-3xl mx-auto mb-6 flex items-center justify-center shadow-lg"><Instagram className="text-white w-10 h-10" /></div><h1 className="text-3xl font-bold text-white mb-2">AutoGram</h1><p className="text-neutral-400 text-sm">Next-gen automation for creators.</p></div>
+                        <div className="flex bg-black/20 p-1.5 rounded-2xl mb-8 relative"><div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-neutral-800 rounded-xl shadow-lg transition-all duration-300 ease-out ${mode === 'demo' ? 'left-1.5' : 'left-[calc(50%+3px)]'}`}></div><button onClick={() => setMode('demo')} className={`flex-1 py-2.5 text-xs font-semibold rounded-xl relative z-10 transition-colors ${mode === 'demo' ? 'text-white' : 'text-neutral-400'}`}>Demo Mode</button><button onClick={() => setMode('custom')} className={`flex-1 py-2.5 text-xs font-semibold rounded-xl relative z-10 transition-colors ${mode === 'custom' ? 'text-white' : 'text-neutral-400'}`}>Live Mode</button></div>
+                        {mode === 'demo' ? (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500"><button onClick={handleDemoLogin} disabled={loading} className="w-full h-14 bg-white hover:bg-neutral-100 text-black rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 group shadow-xl shadow-white/5">{loading ? <Loader2 className="animate-spin text-black" /> : <span>Enter Dashboard</span>}</button></div>
+                        ) : (
+                            <form onSubmit={handleCustomLogin} className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                                <div className="space-y-3"><input type="text" required className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" style={{fontSize: '16px'}} placeholder="Instagram Username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} /><input type="text" required className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" style={{fontSize: '16px'}} placeholder="Follower Count" value={formData.followers} onChange={e => setFormData({...formData, followers: e.target.value})} /><input type="url" className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" style={{fontSize: '16px'}} placeholder="Avatar URL (Optional)" value={formData.avatar} onChange={e => setFormData({...formData, avatar: e.target.value})} /></div>
+                                <button type="submit" disabled={loading} className="w-full h-14 bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:opacity-90 text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-indigo-500/20">{loading ? <Loader2 className="animate-spin" /> : <span>Launch</span>}</button>
+                            </form>
+                        )}
                     </div>
-
-                    <div className="flex bg-black/20 p-1.5 rounded-2xl mb-8 relative">
-                        <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-neutral-800 rounded-xl shadow-lg transition-all duration-300 ease-out ${mode === 'demo' ? 'left-1.5' : 'left-[calc(50%+3px)]'}`}></div>
-                        <button onClick={() => setMode('demo')} className={`flex-1 py-2.5 text-xs font-semibold rounded-xl relative z-10 transition-colors ${mode === 'demo' ? 'text-white' : 'text-neutral-400'}`}>Demo Mode</button>
-                        <button onClick={() => setMode('custom')} className={`flex-1 py-2.5 text-xs font-semibold rounded-xl relative z-10 transition-colors ${mode === 'custom' ? 'text-white' : 'text-neutral-400'}`}>Live Mode</button>
-                    </div>
-
-                    {mode === 'demo' ? (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <button onClick={handleDemoLogin} disabled={loading} className="w-full h-14 bg-white hover:bg-neutral-100 text-black rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 group shadow-xl shadow-white/5">
-                                {loading ? <Loader2 className="animate-spin text-black" /> : <span>Enter Dashboard</span>}
-                            </button>
-                        </div>
-                    ) : (
-                        <form onSubmit={handleCustomLogin} className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
-                            <div className="space-y-3">
-                                <input 
-                                    type="text" 
-                                    required 
-                                    className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" 
-                                    style={{fontSize: '16px'}} 
-                                    placeholder="Instagram Username" 
-                                    value={formData.username} 
-                                    onChange={e => setFormData({...formData, username: e.target.value})} 
-                                />
-                                <input type="text" required className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" style={{fontSize: '16px'}} placeholder="Follower Count (e.g. 10k)" value={formData.followers} onChange={e => setFormData({...formData, followers: e.target.value})} />
-                                <input type="url" className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" style={{fontSize: '16px'}} placeholder="Avatar URL (Optional)" value={formData.avatar} onChange={e => setFormData({...formData, avatar: e.target.value})} />
-                            </div>
-                            <button type="submit" disabled={loading} className="w-full h-14 bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:opacity-90 text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-indigo-500/20">
-                                {loading ? <Loader2 className="animate-spin" /> : <span>Launch</span>}
-                            </button>
-                        </form>
-                    )}
-                </div>
                 </div>
             );
         };
@@ -807,263 +581,66 @@
             const [topic, setTopic] = useState("");
             const [style, setStyle] = useState("Hyper Realistic");
             const [isGenerating, setIsGenerating] = useState(false);
-            const [isCaptionLoading, setIsCaptionLoading] = useState(false); // Add this
+            const [isCaptionLoading, setIsCaptionLoading] = useState(false);
             const [result, setResult] = useState(null);
             const [faceImage, setFaceImage] = useState(null);
             const [editedCaption, setEditedCaption] = useState("");
             const [showScheduleModal, setShowScheduleModal] = useState(false);
-
             const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/10' : 'bg-white/60 border-black/5';
             const inputClass = theme === 'dark' ? 'bg-black/30 border-white/5 text-white placeholder-neutral-600 focus:bg-black/50' : 'bg-white/80 border-black/5 text-black placeholder-neutral-400 focus:bg-white';
-            const textTitle = theme === 'dark' ? 'text-white' : 'text-neutral-900';
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
 
-            const handleFaceUpload = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                const reader = new FileReader();
-                reader.onloadend = () => setFaceImage(reader.result);
-                reader.readAsDataURL(file);
-                }
-            };
-
+            const handleFaceUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => setFaceImage(reader.result); reader.readAsDataURL(file); } };
             const handleGenerate = async () => {
                 if (!topic) return;
-                setIsGenerating(true);
-                setResult(null);
-
+                setIsGenerating(true); setResult(null);
                 const seed = Math.floor(Math.random() * 10000);
-                const facePrompt = faceImage ? "resembling the uploaded reference photo, " : "";
-                const prompt = `hyper realistic photography, ${facePrompt}${topic}, ${style}, 8k, cinematic lighting, highly detailed --no text`;
-                
-                // Fallback caption
-                let generatedCaption = `✨ ${topic.charAt(0).toUpperCase() + topic.slice(1)} vibes today.\n\nGenerated with AI. What do you think of this view?\n\n#${topic.replace(/\s+/g, '')} #AIArt #${style.replace(/\s+/g, '')} #InstaDaily`;
-                
-                // Try Gemini
+                const facePrompt = faceImage ? "resembling uploaded face, " : "";
+                const prompt = `hyper realistic photography, ${facePrompt}${topic}, ${style}, 8k`;
+                let caption = `✨ ${topic} vibes. #AI #${style.replace(/\s+/g, '')}`;
                 const geminiCaption = await generateGeminiCaption(topic, style);
-                if (geminiCaption) {
-                    generatedCaption = geminiCaption;
-                }
-
-                // Generate Image
-                const imageUrl = await generateImage(prompt, seed);
-
-                setResult({
-                    imageUrl: imageUrl,
-                    caption: generatedCaption,
-                });
-                setEditedCaption(generatedCaption);
-                setIsGenerating(false);
+                if (geminiCaption) caption = geminiCaption;
+                const img = await generateImage(prompt, seed);
+                setTimeout(() => { setResult({ imageUrl: img, caption: caption }); setEditedCaption(caption); setIsGenerating(false); }, 1500);
             };
-
-            const handleRegenerateCaption = async () => {
-                if (!topic) return;
-                setIsCaptionLoading(true);
-                const newCaption = await generateGeminiCaption(topic, style);
-                if (newCaption) {
-                    setEditedCaption(newCaption);
-                }
-                setIsCaptionLoading(false);
-            };
-
-            const confirmSchedule = (date) => {
-                onSchedule({
-                    ...result,
-                    caption: editedCaption,
-                    date: date.toISOString(),
-                    status: 'scheduled'
-                });
-                setShowScheduleModal(false);
-                setResult(null);
-                setTopic("");
-            };
-
-            const triggerAutoPilotConfig = () => {
-                if (autoPilot.active) {
-                    setAutoPilot({ ...autoPilot, active: false, nextPostTime: null });
-                    return;
-                }
-                
-                if (!pendingAutoTopic) {
-                    alert("Please enter a topic for Auto-Pilot.");
-                    return;
-                }
-
-                setShowAutoPilotModal(true);
-            };
+            const handleRegenerateCaption = async () => { if(!topic) return; setIsCaptionLoading(true); const newCap = await generateGeminiCaption(topic, style); if(newCap) setEditedCaption(newCap); setIsCaptionLoading(false); };
+            const confirmSchedule = (date) => { onSchedule({ ...result, caption: editedCaption, date: date.toISOString(), status: 'scheduled' }); setShowScheduleModal(false); setResult(null); setTopic(""); };
+            const triggerAutoPilotConfig = () => { if (autoPilot.active) { setAutoPilot({ ...autoPilot, active: false, nextPostTime: null }); return; } if (!pendingAutoTopic) return alert("Enter topic"); setShowAutoPilotModal(true); };
 
             return (
                 <div className="animate-in fade-in duration-700 space-y-6 md:space-y-8">
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div>
-                        <h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Create</h2>
-                        <p className={`${textMuted} mt-1`}>Design viral content in seconds.</p>
-                    </div>
-                    
-                    <div className={`${glassClass} backdrop-blur-md border p-1.5 pl-4 pr-1.5 rounded-full flex items-center justify-between gap-4 shadow-sm w-full md:w-auto`}>
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${autoPilot.active ? 'bg-green-500 animate-pulse' : 'bg-neutral-400'}`}></div>
-                            <span className={`text-xs font-medium ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>Auto-Pilot</span>
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                        <div><h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Create</h2><p className={`${textMuted} mt-1`}>Design viral content in seconds.</p></div>
+                        <div className={`${glassClass} backdrop-blur-md border p-1.5 pl-4 pr-1.5 rounded-full flex items-center justify-between gap-4 shadow-sm w-full md:w-auto`}>
+                            <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${autoPilot.active ? 'bg-green-500 animate-pulse' : 'bg-neutral-400'}`}></div><span className={`text-xs font-medium ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>Auto-Pilot</span></div>
+                            {autoPilot.active ? <button onClick={() => setAutoPilot(prev => ({...prev, active: false}))} className="bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded-full text-xs font-semibold transition-colors">Stop</button> : <div className="flex items-center gap-2 flex-1 justify-end"><input type="text" placeholder="Topic..." value={pendingAutoTopic} onChange={(e) => setPendingAutoTopic(e.target.value)} className={`bg-transparent text-sm w-full md:w-20 outline-none text-right mr-2 ${theme === 'dark' ? 'text-white' : 'text-black'}`} style={{fontSize:'16px'}} /><button onClick={triggerAutoPilotConfig} className={`${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} px-4 py-2 rounded-full text-xs font-bold`}>Start</button></div>}
                         </div>
-                        
-                        {autoPilot.active ? (
-                            <button onClick={() => setAutoPilot(prev => ({...prev, active: false, nextPostTime: null}))} className={`bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded-full text-xs font-semibold transition-colors`}>Stop</button>
-                        ) : (
-                                <div className="flex items-center gap-2 flex-1 justify-end">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Topic..." 
-                                        value={pendingAutoTopic} 
-                                        onChange={(e) => setPendingAutoTopic(e.target.value)} 
-                                        className={`bg-transparent text-sm w-full md:w-20 outline-none text-right mr-2 ${theme === 'dark' ? 'text-white placeholder-neutral-600' : 'text-black placeholder-neutral-400'}`}
-                                        style={{ fontSize: '16px' }} // No zoom on mobile
-                                    />
-                                    <button onClick={triggerAutoPilotConfig} className={`${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} px-4 py-2 rounded-full text-xs font-bold hover:opacity-80 transition-opacity whitespace-nowrap`}>Start</button>
+                    </div>
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8">
+                        <div className="xl:col-span-7 space-y-6">
+                            <div className={`${glassClass} backdrop-blur-xl border p-6 md:p-8 rounded-[32px] shadow-2xl space-y-8`}>
+                                <div><label className={`block text-xs font-bold uppercase tracking-widest mb-3 pl-1 ${textMuted}`}>Prompt</label><textarea value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Describe your vision..." className={`w-full rounded-3xl p-5 text-lg outline-none h-32 resize-none transition-all shadow-inner border ${inputClass}`} style={{fontSize:'16px'}} /></div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div><label className={`block text-xs font-bold uppercase tracking-widest mb-3 pl-1 ${textMuted}`}>Aesthetic</label><div className="relative"><select value={style} onChange={(e) => setStyle(e.target.value)} className={`w-full appearance-none rounded-2xl p-4 text-sm font-medium outline-none border transition-all ${inputClass}`}>{["Hyper Realistic", "Cinematic", "Cyberpunk", "Minimalist"].map(s=><option key={s} value={s}>{s}</option>)}</select></div></div>
+                                    <div><label className={`block text-xs font-bold uppercase tracking-widest mb-3 pl-1 ${textMuted}`}>Face Ref</label><div className="relative h-[54px]"><input type="file" accept="image/*" onChange={handleFaceUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" /><div className={`absolute inset-0 rounded-2xl border border-dashed flex items-center justify-center gap-3 text-xs font-medium ${faceImage ? 'border-indigo-500/50 text-indigo-400' : `${theme==='dark'?'border-white/10':'border-black/10'} ${textMuted}`}`}>{faceImage ? "Active" : "Upload"}</div></div></div>
                                 </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8">
-                    <div className="xl:col-span-7 space-y-6">
-                    <div className={`${glassClass} backdrop-blur-xl border p-6 md:p-8 rounded-[32px] shadow-2xl space-y-8 relative overflow-hidden group transition-colors duration-300`}>
-                        
-                        <div>
-                            <label className={`block text-xs font-bold uppercase tracking-widest mb-3 pl-1 ${textMuted}`}>Prompt</label>
-                            <textarea 
-                                value={topic}
-                                onChange={(e) => setTopic(e.target.value)}
-                                placeholder="Describe your vision..."
-                                className={`w-full rounded-3xl p-5 text-lg outline-none h-32 resize-none transition-all shadow-inner border ${inputClass}`}
-                                style={{fontSize: '16px'}}
-                            />
+                                <button onClick={handleGenerate} disabled={isGenerating||!topic} className={`w-full h-16 rounded-[24px] font-bold text-lg flex items-center justify-center gap-3 transition-all ${isGenerating||!topic?'opacity-50 cursor-not-allowed':''} ${theme==='dark'?'bg-white text-black':'bg-black text-white'}`}>{isGenerating?<Loader2 className="animate-spin"/>:"Generate"}</button>
+                            </div>
                         </div>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className={`block text-xs font-bold uppercase tracking-widest mb-3 pl-1 ${textMuted}`}>Aesthetic</label>
-                                <div className="relative">
-                                    <select 
-                                        value={style}
-                                        onChange={(e) => setStyle(e.target.value)}
-                                        className={`w-full appearance-none rounded-2xl p-4 text-sm font-medium outline-none border transition-all ${inputClass}`}
-                                    >
-                                        {["Hyper Realistic", "Cinematic", "Cyberpunk", "Minimalist", "Surreal", "Vintage", "Anime"].map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                    <div className={`absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none ${textMuted}`}>▼</div>
+                        <div className="xl:col-span-5">
+                            {!result && !isGenerating && <div className={`h-full min-h-[400px] border border-dashed rounded-[32px] flex flex-col items-center justify-center gap-4 ${glassClass} ${textMuted}`}><ImageIcon size={32} className="opacity-50"/><p>Canvas Empty</p></div>}
+                            {isGenerating && <div className={`h-full min-h-[400px] backdrop-blur-xl border rounded-[32px] flex flex-col items-center justify-center gap-6 ${glassClass}`}><div className="w-24 h-24 border-4 rounded-full animate-spin border-t-transparent border-white/20"></div></div>}
+                            {result && <div className={`backdrop-blur-2xl border rounded-[32px] overflow-hidden shadow-2xl ${glassClass}`}>
+                                <img src={result.imageUrl} className="w-full aspect-[4/5] object-cover" />
+                                <div className="p-6 space-y-6">
+                                    <div className="flex justify-between items-center"><span className={`text-xs font-bold uppercase tracking-widest ${textMuted}`}>Caption</span><button onClick={handleRegenerateCaption} disabled={isCaptionLoading} className="text-xs font-medium flex items-center gap-1">{isCaptionLoading?<Loader2 size={12} className="animate-spin"/>:<Wand2 size={12}/>} Generate Caption</button></div>
+                                    <textarea value={editedCaption} onChange={e=>setEditedCaption(e.target.value)} className="w-full bg-transparent text-sm h-24 resize-none outline-none" />
+                                    <button onClick={()=>setShowScheduleModal(true)} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold">Schedule</button>
                                 </div>
-                            </div>
-                            
-                            <div>
-                                <label className={`block text-xs font-bold uppercase tracking-widest mb-3 pl-1 ${textMuted}`}>Face Ref</label>
-                                <div className="relative group/upload h-[54px]">
-                                    <input type="file" accept="image/*" onChange={handleFaceUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-                                    <div className={`absolute inset-0 rounded-2xl border border-dashed flex items-center justify-center gap-3 text-xs font-medium transition-all duration-300 ${faceImage ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400' : `${theme === 'dark' ? 'border-white/10 bg-black/30 hover:bg-black/50' : 'border-black/10 bg-white/50 hover:bg-white/80'} ${textMuted}`}`}>
-                                        {faceImage ? (
-                                            <>
-                                                <img src={faceImage} className="w-8 h-8 rounded-full object-cover shadow-sm" alt="ref" />
-                                                <span>Active</span>
-                                                <button onClick={(e) => {e.preventDefault(); setFaceImage(null);}} className="absolute right-3 p-1 hover:text-red-500 z-30"><X size={14}/></button>
-                                            </>
-                                        ) : (
-                                            <><Upload size={16} /> Upload Face</>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
+                            </div>}
                         </div>
-
-                        <button 
-                        onClick={handleGenerate}
-                        disabled={isGenerating || !topic}
-                        className={`w-full h-16 rounded-[24px] font-bold text-lg flex items-center justify-center gap-3 transition-all duration-300 ${isGenerating || !topic ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed' : `${theme === 'dark' ? 'bg-white text-black hover:bg-neutral-200' : 'bg-black text-white hover:bg-neutral-800'} shadow-[0_0_40px_-10px_rgba(100,100,100,0.3)] active:scale-[0.98]`}`}
-                        >
-                        {isGenerating ? <><Loader2 className="animate-spin" size={24} /> Generating...</> : <><Wand2 size={24} /> Generate</>}
-                        </button>
                     </div>
-                    </div>
-
-                    <div className="xl:col-span-5">
-                    {!result && !isGenerating && (
-                        <div className={`h-full min-h-[400px] xl:min-h-full border border-dashed rounded-[32px] flex flex-col items-center justify-center gap-4 ${glassClass} ${textMuted}`}>
-                        <div className={`w-20 h-20 rounded-full flex items-center justify-center ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}>
-                                <ImageIcon size={32} className="opacity-50" />
-                        </div>
-                        <p className="font-medium">Canvas Empty</p>
-                        </div>
-                    )}
-
-                    {isGenerating && (
-                        <div className={`h-full min-h-[400px] xl:min-h-full backdrop-blur-xl border rounded-[32px] flex flex-col items-center justify-center gap-6 relative overflow-hidden ${glassClass}`}>
-                        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-fuchsia-500/10 animate-pulse"></div>
-                        <div className={`w-24 h-24 border-4 rounded-full animate-spin ${theme === 'dark' ? 'border-white/20 border-t-white' : 'border-black/10 border-t-black'}`}></div>
-                        <p className={`font-medium tracking-wide animate-pulse ${textTitle}`}>
-                            {faceImage ? "Synthesizing Identity..." : "Rendering Pixels..."}
-                        </p>
-                        </div>
-                    )}
-
-                    {result && (
-                        <div className={`backdrop-blur-2xl border rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500 relative group ${glassClass}`}>
-                        <div className="relative aspect-[4/5] overflow-hidden">
-                            <img src={result.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Generated" />
-                            <div className="absolute top-4 left-4 flex gap-2">
-                                <div className="bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10">
-                                        <img src={user.avatar} className="w-5 h-5 rounded-full" alt="" />
-                                        <span className="text-xs font-bold text-white">{user.username}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 space-y-6">
-                            
-                            <div className="flex justify-between items-center">
-                                <span className={`text-xs font-bold uppercase tracking-widest ${textMuted}`}>Caption</span>
-                                <button 
-                                    onClick={handleRegenerateCaption}
-                                    disabled={isCaptionLoading}
-                                    className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg transition-colors ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`}
-                                >
-                                    {isCaptionLoading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                                    <span>Generate Caption</span>
-                                </button>
-                            </div>
-
-                            <div className="relative">
-                                <textarea 
-                                    value={editedCaption}
-                                    onChange={(e) => setEditedCaption(e.target.value)}
-                                    className={`w-full bg-transparent text-sm resize-none outline-none h-24 leading-relaxed ${theme === 'dark' ? 'text-neutral-300 focus:text-white' : 'text-neutral-600 focus:text-black'}`}
-                                />
-                            </div>
-                            
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => setResult(null)}
-                                    className={`p-4 rounded-2xl transition-colors ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`}
-                                >
-                                    <Trash2 size={20} />
-                                </button>
-                                <button 
-                                    onClick={() => setShowScheduleModal(true)}
-                                    className="flex-1 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
-                                >
-                                    <CheckCircle2 size={20} /> Schedule
-                                </button>
-                            </div>
-                        </div>
-                        </div>
-                    )}
-                    </div>
-                </div>
-
-                {showScheduleModal && (
-                    <ModernDatePicker 
-                        onClose={() => setShowScheduleModal(false)} 
-                        onConfirm={confirmSchedule} 
-                        theme={theme}
-                    />
-                )}
+                    {showScheduleModal && <ModernDatePicker onClose={()=>setShowScheduleModal(false)} onConfirm={confirmSchedule} theme={theme} />}
                 </div>
             );
         };
@@ -1073,11 +650,11 @@
             const [selectedHour, setSelectedHour] = useState(12);
             const [selectedMinute, setSelectedMinute] = useState(0);
             const [amPm, setAmPm] = useState('PM');
-
-            const dayItems = ['Today', 'Tomorrow', 'In 2 Days', 'In 3 Days', 'In 4 Days'].map((label, i) => ({ value: i, label }));
-            const hourItems = Array.from({length: 12}, (_, i) => ({ value: i + 1, label: (i + 1).toString() }));
-            const minItems = [0, 15, 30, 45].map(m => ({ value: m, label: m.toString().padStart(2, '0') }));
-            const amPmItems = [{value: 'AM', label: 'AM'}, {value: 'PM', label: 'PM'}];
+            
+            const dayItems = useMemo(() => ['Today', 'Tomorrow', 'In 2 Days', 'In 3 Days', 'In 4 Days'].map((label, i) => ({ value: i, label })), []);
+            const hourItems = useMemo(() => Array.from({length: 12}, (_, i) => ({ value: i + 1, label: (i + 1).toString() })), []);
+            const minItems = useMemo(() => [0, 15, 30, 45].map(m => ({ value: m, label: m.toString().padStart(2, '0') })), []);
+            const amPmItems = useMemo(() => [{value: 'AM', label: 'AM'}, {value: 'PM', label: 'PM'}], []);
 
             const handleConfirm = () => {
                 const date = new Date();
@@ -1091,88 +668,52 @@
 
             const bgClass = theme === 'dark' ? 'bg-neutral-900 border-white/10' : 'bg-white border-black/10';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
-            const textMuted = theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400';
             const activeChip = theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white';
-            const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400 hover:bg-white/10' : 'bg-black/5 text-neutral-600 hover:bg-black/10';
+            const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400' : 'bg-black/5 text-neutral-600';
 
             return (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4 animate-scale-in">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose}></div>
-                    <div className={`${bgClass} border p-6 md:p-8 rounded-t-[32px] md:rounded-[32px] w-full max-w-md shadow-2xl relative animate-in slide-in-from-bottom-10 duration-300`}>
+                    <div className={`${bgClass} border p-6 md:p-8 rounded-t-[32px] md:rounded-[32px] w-full max-w-md shadow-2xl relative flex flex-col max-h-[85vh]`}>
                         <div className="flex justify-between items-center mb-6">
                             <h3 className={`text-2xl font-bold ${textMain}`}>Schedule</h3>
-                            <button onClick={onClose} className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'}`}>
-                                <X size={20} className={textMain}/>
-                            </button>
+                            <button onClick={onClose} className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}><X size={20} className={textMain}/></button>
                         </div>
-
-                        <div className="space-y-8">
-                            <div>
-                                {/* Horizontal Scrolling Day Selector */}
-                                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
-                                    {dayItems.map((day, i) => (
-                                        <button
-                                            key={i}
-                                            onClick={() => setSelectedDate(day.value)}
-                                            className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
-                                                selectedDate === day.value 
-                                                    ? activeChip 
-                                                    : inactiveChip
-                                            }`}
-                                        >
-                                            {day.label}
-                                        </button>
-                                    ))}
-                                </div>
+                        <div className="space-y-8 flex-1 overflow-y-auto no-scrollbar">
+                            <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
+                                {dayItems.map((day, i) => (
+                                    <button key={i} onClick={() => setSelectedDate(day.value)} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${selectedDate === day.value ? activeChip : inactiveChip}`}>{day.label}</button>
+                                ))}
                             </div>
-
-                            <div className={`rounded-3xl p-6 flex items-center justify-center gap-3 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
-                                {/* Removed Date Wheel from here since it's now horizontal above */}
+                            <div className={`rounded-3xl p-6 flex items-center justify-center gap-2 md:gap-6 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
                                 <RouletteWheel items={hourItems} selectedValue={selectedHour} onSelect={setSelectedHour} label="Hr" theme={theme} />
-                                <span className={`text-2xl font-light ${theme === 'dark' ? 'text-neutral-600' : 'text-neutral-300'} mb-6`}>:</span>
+                                <span className="text-2xl font-light opacity-30 mt-4">:</span>
                                 <RouletteWheel items={minItems} selectedValue={selectedMinute} onSelect={setSelectedMinute} label="Min" theme={theme} />
-                                <span className={`text-2xl font-light ${theme === 'dark' ? 'text-neutral-600' : 'text-neutral-300'} mb-6`}>:</span>
+                                <span className="text-2xl font-light opacity-30 mt-4">:</span>
                                 <RouletteWheel items={amPmItems} selectedValue={amPm} onSelect={setAmPm} label="Meridiem" theme={theme} />
                             </div>
-
-                            <button onClick={handleConfirm} className={`w-full h-14 rounded-2xl font-bold transition-all active:scale-95 text-lg ${theme === 'dark' ? 'bg-white hover:bg-neutral-200 text-black' : 'bg-black hover:bg-neutral-800 text-white'}`}>
-                                Confirm Schedule
-                            </button>
+                            <button onClick={handleConfirm} className={`w-full h-14 rounded-2xl font-bold transition-all active:scale-95 text-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Confirm Schedule</button>
                         </div>
                     </div>
                 </div>
-            )
-        }
+            );
+        };
 
         const PostCard = ({ post, isPosted, onDelete, glassClass, textTitle, textMuted }) => (
             <div key={post.id} className={`${glassClass} backdrop-blur-xl border p-4 rounded-[24px] flex gap-4 group hover:scale-[1.02] transition-all duration-300 ease-spring`}>
                 <div className="w-24 h-24 shrink-0 rounded-2xl overflow-hidden shadow-lg bg-neutral-800">
                     <img src={post.imageUrl} alt="Thumbnail" className="w-full h-full object-cover" />
                 </div>
-                
                 <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                     <div>
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border ${isPosted ? 'bg-blue-500/20 text-blue-400 border-blue-500/10' : 'bg-green-500/20 text-green-500 border-green-500/10'}`}>
                             {isPosted ? <Check size={12} /> : <Hourglass size={12} />} 
                             {isPosted ? 'Posted' : 'Upcoming'}
                         </span>
-                        <h4 className={`font-medium truncate text-sm ${textTitle}`}>
-                            {new Date(post.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </h4>
-                        <p className={`${textMuted} text-xs mt-0.5`}>
-                            {new Date(post.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
+                        <h4 className={`font-medium truncate text-sm ${textTitle}`}>{new Date(post.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h4>
+                        <p className={`${textMuted} text-xs mt-0.5`}>{new Date(post.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
-                    
-                    <div className="flex justify-end">
-                        <button 
-                            onClick={() => onDelete(post.id)}
-                            className={`${textMuted} hover:text-red-400 transition-colors p-2`}
-                            title="Remove"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    </div>
+                    <div className="flex justify-end"><button onClick={() => onDelete(post.id)} className={`${textMuted} hover:text-red-400 transition-colors p-2`} title="Remove"><Trash2 size={16} /></button></div>
                 </div>
             </div>
         );
@@ -1181,71 +722,18 @@
             const textTitle = theme === 'dark' ? 'text-white' : 'text-neutral-900';
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
             const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/5' : 'bg-white/60 border-black/5';
-
             const upcomingPosts = posts.filter(p => new Date(p.date) > new Date());
             const postedPosts = posts.filter(p => new Date(p.date) <= new Date()).sort((a,b) => new Date(b.date) - new Date(a.date));
 
             return (
             <div className="animate-in fade-in duration-700 space-y-12">
                 <div>
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Upcoming Queue</h2>
-                            <p className={`${textMuted} mt-1`}>Content scheduled for publication.</p>
-                        </div>
-                    </div>
-
-                    {upcomingPosts.length === 0 ? (
-                        <div className={`py-16 flex flex-col items-center justify-center border border-dashed rounded-[32px] ${glassClass} ${textMuted}`}>
-                            <Calendar size={48} className="mb-4 opacity-50" />
-                            <h3 className="text-lg font-bold">Queue Empty</h3>
-                            <p className="text-xs">Generate posts to fill your schedule.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {upcomingPosts.map(post => (
-                                <PostCard 
-                                    key={post.id} 
-                                    post={post} 
-                                    isPosted={false} 
-                                    onDelete={onDelete} 
-                                    glassClass={glassClass} 
-                                    textTitle={textTitle} 
-                                    textMuted={textMuted} 
-                                />
-                            ))}
-                        </div>
-                    )}
+                    <h2 className={`text-3xl md:text-4xl font-bold tracking-tight mb-6 ${textTitle}`}>Upcoming Queue</h2>
+                    {upcomingPosts.length === 0 ? <div className={`py-16 flex flex-col items-center justify-center border border-dashed rounded-[32px] ${glassClass} ${textMuted}`}><Calendar size={48} className="mb-4 opacity-50" /><h3 className="text-lg font-bold">Queue Empty</h3></div> : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{upcomingPosts.map(post => <PostCard key={post.id} post={post} isPosted={false} onDelete={onDelete} glassClass={glassClass} textTitle={textTitle} textMuted={textMuted} />)}</div>}
                 </div>
-
                 <div>
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-neutral-400 to-neutral-600' : 'from-neutral-600 to-neutral-400'}`}>Posted History</h2>
-                            <p className={`${textMuted} mt-1`}>Archive of published content.</p>
-                        </div>
-                    </div>
-
-                    {postedPosts.length === 0 ? (
-                        <div className={`py-12 flex flex-col items-center justify-center rounded-[32px] ${textMuted} opacity-60`}>
-                            <History size={32} className="mb-2" />
-                            <span className="text-sm">No history yet</span>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-80 hover:opacity-100 transition-opacity">
-                            {postedPosts.map(post => (
-                                <PostCard 
-                                    key={post.id} 
-                                    post={post} 
-                                    isPosted={true} 
-                                    onDelete={onDelete} 
-                                    glassClass={glassClass} 
-                                    textTitle={textTitle} 
-                                    textMuted={textMuted} 
-                                />
-                            ))}
-                        </div>
-                    )}
+                    <h2 className={`text-3xl md:text-4xl font-bold tracking-tight mb-6 ${textTitle}`}>Posted History</h2>
+                    {postedPosts.length === 0 ? <div className={`py-12 flex flex-col items-center justify-center rounded-[32px] ${textMuted} opacity-60`}><History size={32} className="mb-2" /><span className="text-sm">No history yet</span></div> : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-80 hover:opacity-100 transition-opacity">{postedPosts.map(post => <PostCard key={post.id} post={post} isPosted={true} onDelete={onDelete} glassClass={glassClass} textTitle={textTitle} textMuted={textMuted} />)}</div>}
                 </div>
             </div>
             )
@@ -1257,193 +745,26 @@
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
             const itemHover = theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-black/5';
             const [keyInput, setKeyInput] = useState(apiKey);
-            
-            // Delete Account State
             const [isDeleting, setIsDeleting] = useState(false);
             const [sliderVal, setSliderVal] = useState(0);
 
-            const handleSave = () => {
-                onSaveApiKey(keyInput);
-                alert("API Key Saved!");
-            }
-
-            const handleDelete = (e) => {
-                const val = e.target.value;
-                setSliderVal(val);
-                if (parseInt(val) === 100) {
-                    setTimeout(() => {
-                        alert("Account Permanently Deleted");
-                        onLogout();
-                    }, 200);
-                }
-            };
-
-            const resetDelete = () => {
-                setIsDeleting(false);
-                setSliderVal(0);
-            }
+            const handleSave = () => { onSaveApiKey(keyInput); alert("API Key Saved!"); };
+            const handleDelete = (e) => { const val = e.target.value; setSliderVal(val); if (parseInt(val) === 100) { setTimeout(() => { alert("Account Permanently Deleted"); onLogout(); }, 200); } };
+            const resetDelete = () => { setIsDeleting(false); setSliderVal(0); };
 
             return (
                 <div className="animate-in fade-in duration-700 space-y-8 max-w-2xl mx-auto pb-24">
-                    {/* Header */}
-                    <div>
-                        <h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Settings</h2>
-                        <p className={`${textMuted} mt-1`}>Manage your preferences.</p>
+                    <div><h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Settings</h2></div>
+                    <div className={`${glassClass} backdrop-blur-xl border rounded-[32px] overflow-hidden`}>
+                        <div className="p-6 border-b border-white/5">
+                            <div className="flex items-center justify-between mb-4"><h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted}`}>AI Configuration</h3><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest hover:underline ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}>Get API Key <ExternalLink size={10} /></a></div>
+                            <div className="flex gap-2"><div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-white border-black/10'}`}><Key size={16} className={textMuted} /><input type="password" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} placeholder="Paste your Google AI Studio Key" className={`bg-transparent w-full outline-none text-sm ${textMain}`} style={{fontSize: '16px'}} /></div><button onClick={handleSave} className={`px-4 py-2 rounded-2xl font-bold text-sm transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-neutral-200' : 'bg-black text-white hover:bg-neutral-800'}`}>Save</button></div>
+                        </div>
+                        <div className="p-6 border-b border-white/5"><h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted} mb-4`}>Appearance</h3><div className={`flex items-center justify-between p-3 rounded-2xl transition-colors cursor-pointer ${itemHover}`} onClick={toggleTheme}><div className="flex items-center gap-3"><div className={`p-2 rounded-full ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-orange-500/20 text-orange-500'}`}>{theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}</div><div><div className={`font-semibold ${textMain}`}>Dark Mode</div></div></div><div className={`w-12 h-6 rounded-full p-1 transition-colors ${theme === 'dark' ? 'bg-indigo-600' : 'bg-neutral-300'}`}><div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div></div>
+                        <div className="p-6 border-b border-white/5"><h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted} mb-4`}>Account</h3><div className="space-y-2"><div className={`w-full flex items-center justify-between p-3 rounded-2xl transition-colors ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}><div className="flex items-center gap-3"><div className={`p-2 rounded-full bg-pink-500/10 text-pink-500`}><Instagram size={20} /></div><div><div className={`font-semibold ${textMain}`}>Instagram Linked</div><div className="text-xs text-neutral-500">@{user?.username || 'user'}</div></div></div><button onClick={onLogout} className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold rounded-lg transition-colors">Disconnect</button></div><button onClick={onLogout} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-colors ${itemHover}`}><div className="flex items-center gap-3"><div className={`p-2 rounded-full bg-neutral-500/10 ${textMuted}`}><LogOut size={20} /></div><div className={`font-semibold ${textMain}`}>Log Out</div></div></button></div></div>
+                        <div className="p-6"><h3 className={`text-sm font-bold uppercase tracking-widest text-red-500/80 mb-4`}>Danger Zone</h3>{!isDeleting ? <button onClick={() => setIsDeleting(true)} className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-colors hover:bg-red-500/10 text-red-500 group`}><div className={`p-2 rounded-full bg-red-500/10 group-hover:bg-red-500/20`}><Shield size={20} /></div><div className="text-left"><div className="font-semibold">Delete Account</div><div className="text-xs opacity-70">This action cannot be undone</div></div></button> : <div className="bg-red-500/5 rounded-2xl p-4 border border-red-500/20 animate-in fade-in zoom-in duration-300"><div className="flex justify-between items-center mb-4"><span className="text-sm font-bold text-red-500">Are you sure?</span><button onClick={resetDelete} className="text-xs text-neutral-500 hover:text-white">Cancel</button></div><div className="relative h-12 bg-neutral-900 rounded-full overflow-hidden border border-white/10"><div className="absolute inset-0 flex items-center justify-center text-[10px] uppercase font-bold tracking-widest text-white/20 pointer-events-none">Slide to Delete</div><div className="absolute top-0 left-0 bottom-0 bg-red-600 transition-all duration-75 ease-out opacity-50" style={{ width: `${sliderVal}%` }}></div><input type="range" min="0" max="100" value={sliderVal} onChange={handleDelete} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><div className="absolute top-1 bottom-1 w-10 bg-white rounded-full shadow-lg pointer-events-none transition-all duration-75 ease-out flex items-center justify-center text-black" style={{ left: `calc(${sliderVal}% - ${sliderVal * 0.4}px)` }}><Trash2 size={14} className={sliderVal > 90 ? 'text-red-600' : 'text-black'}/></div></div></div>}</div>
                     </div>
-
-                    <div className={`animate-slide-up ${glassClass} backdrop-blur-xl border rounded-[32px] overflow-hidden`}>
-                        
-                        <div className="p-6 border-b border-white/5">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted}`}>AI Configuration</h3>
-                                <a 
-                                    href="https://aistudio.google.com/app/apikey"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest hover:underline ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}
-                                >
-                                    Get API Key <ExternalLink size={10} />
-                                </a>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className={`block text-xs font-bold uppercase tracking-widest mb-2 ${textMuted}`}>Gemini API Key</label>
-                                    <div className="flex gap-2">
-                                        <div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-white border-black/10'}`}>
-                                            <Key size={16} className={textMuted} />
-                                            <input 
-                                                type="password" 
-                                                value={keyInput}
-                                                onChange={(e) => setKeyInput(e.target.value)}
-                                                placeholder="Paste your Google AI Studio Key"
-                                                className={`bg-transparent w-full outline-none text-sm ${textMain}`}
-                                                style={{fontSize: '16px'}}
-                                            />
-                                        </div>
-                                        <button 
-                                            onClick={handleSave}
-                                            className={`px-4 py-2 rounded-2xl font-bold text-sm transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-neutral-200' : 'bg-black text-white hover:bg-neutral-800'}`}
-                                        >
-                                            Save
-                                        </button>
-                                    </div>
-                                    <p className="text-[10px] text-neutral-500 mt-2 ml-1">Key is stored locally in your browser. Required for smart captions.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-b border-white/5">
-                            <h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted} mb-4`}>Appearance</h3>
-                            <div className={`flex items-center justify-between p-3 rounded-2xl transition-colors cursor-pointer ${itemHover}`} onClick={toggleTheme}>
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-full ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-orange-500/20 text-orange-500'}`}>
-                                        {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
-                                    </div>
-                                    <div>
-                                        <div className={`font-semibold ${textMain}`}>Dark Mode</div>
-                                        <div className={`text-xs ${textMuted}`}>{theme === 'dark' ? 'On' : 'Off'}</div>
-                                    </div>
-                                </div>
-                                <div className={`w-12 h-6 rounded-full p-1 transition-colors ${theme === 'dark' ? 'bg-indigo-600' : 'bg-neutral-300'}`}>
-                                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-b border-white/5">
-                            <h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted} mb-4`}>Account</h3>
-                            <div className="space-y-2">
-                                {/* Instagram Linked - Replaces Linked Devices */}
-                                <div className={`w-full flex items-center justify-between p-3 rounded-2xl transition-colors ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}>
-                                     <div className="flex items-center gap-3">
-                                         <div className={`p-2 rounded-full bg-pink-500/10 text-pink-500`}>
-                                             <Instagram size={20} />
-                                         </div>
-                                         <div>
-                                            <div className={`font-semibold ${textMain}`}>Instagram Linked</div>
-                                            <div className="text-xs text-neutral-500">@{user?.username || 'user'}</div>
-                                         </div>
-                                     </div>
-                                     <button 
-                                        onClick={onLogout}
-                                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold rounded-lg transition-colors"
-                                     >
-                                        Disconnect
-                                     </button>
-                                </div>
-
-                                {/* Logout */}
-                                <button onClick={onLogout} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-colors ${itemHover}`}>
-                                     <div className="flex items-center gap-3">
-                                         <div className={`p-2 rounded-full bg-neutral-500/10 ${textMuted}`}>
-                                             <LogOut size={20} />
-                                         </div>
-                                         <div className={`font-semibold ${textMain}`}>Log Out</div>
-                                     </div>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="p-6">
-                            <h3 className={`text-sm font-bold uppercase tracking-widest text-red-500/80 mb-4`}>Danger Zone</h3>
-                            
-                            {!isDeleting ? (
-                                <button 
-                                    onClick={() => setIsDeleting(true)}
-                                    className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-colors hover:bg-red-500/10 text-red-500 group`}
-                                >
-                                     <div className={`p-2 rounded-full bg-red-500/10 group-hover:bg-red-500/20`}>
-                                         <Shield size={20} />
-                                     </div>
-                                     <div className="text-left">
-                                         <div className="font-semibold">Delete Account</div>
-                                         <div className="text-xs opacity-70">This action cannot be undone</div>
-                                     </div>
-                                </button>
-                            ) : (
-                                <div className="bg-red-500/5 rounded-2xl p-4 border border-red-500/20 animate-in fade-in zoom-in duration-300">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <span className="text-sm font-bold text-red-500">Are you sure?</span>
-                                        <button onClick={resetDelete} className="text-xs text-neutral-500 hover:text-white">Cancel</button>
-                                    </div>
-                                    <div className="relative h-12 bg-neutral-900 rounded-full overflow-hidden border border-white/10">
-                                        {/* Slider Background Text */}
-                                        <div className="absolute inset-0 flex items-center justify-center text-[10px] uppercase font-bold tracking-widest text-white/20 pointer-events-none">
-                                            Slide to Delete
-                                        </div>
-                                        {/* Active Fill */}
-                                        <div 
-                                            className="absolute top-0 left-0 bottom-0 bg-red-600 transition-all duration-75 ease-out opacity-50"
-                                            style={{ width: `${sliderVal}%` }}
-                                        ></div>
-                                        {/* Input Range on top */}
-                                        <input 
-                                            type="range" 
-                                            min="0" 
-                                            max="100" 
-                                            value={sliderVal} 
-                                            onChange={handleDelete}
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        />
-                                        {/* Thumb Visual */}
-                                        <div 
-                                            className="absolute top-1 bottom-1 w-10 bg-white rounded-full shadow-lg pointer-events-none transition-all duration-75 ease-out flex items-center justify-center text-black"
-                                            style={{ left: `calc(${sliderVal}% - ${sliderVal * 0.4}px)` }} 
-                                        >
-                                            <Trash2 size={14} className={sliderVal > 90 ? 'text-red-600' : 'text-black'}/>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={onShowTutorial}
-                        className={`w-full text-center text-xs font-bold uppercase tracking-widest ${textMuted} hover:underline`}
-                    >
-                        Show Tutorial Again
-                    </button>
+                    <button onClick={onShowTutorial} className={`w-full text-center text-xs font-bold uppercase tracking-widest ${textMuted} hover:underline`}>Show Tutorial Again</button>
                 </div>
             );
         };
@@ -1455,44 +776,9 @@
 
             return (
             <div className="animate-in fade-in duration-700 space-y-8">
-                <div>
-                <h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Insights</h2>
-                <p className={`${textMuted} mt-1`}>Growth metrics.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <GlassStat icon={Users} label="Followers" value={user.followers} trend="+12%" color="text-indigo-400" theme={theme} />
-                <GlassStat icon={TrendingUp} label="Engagement" value="8.4%" trend="+2.1%" color="text-fuchsia-400" theme={theme} />
-                <GlassStat icon={Eye} label="Reach" value="124k" trend="+5.4%" color="text-blue-400" theme={theme} />
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className={`lg:col-span-2 animate-slide-up ${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`} style={{animationDelay: '100ms'}}>
-                    <h3 className={`font-bold mb-8 text-lg ${textTitle}`}>Weekly Engagement</h3>
-                    <div className="h-64 flex items-end justify-between gap-4 px-2">
-                    {[45, 60, 35, 80, 70, 90, 100].map((h, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-3 group">
-                        <div className={`w-full rounded-t-2xl relative overflow-hidden h-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}>
-                            <div 
-                                className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-600 to-fuchsia-600 rounded-t-2xl transition-all duration-1000 ease-out opacity-80 group-hover:opacity-100"
-                                style={{ height: `${h}%` }}
-                            ></div>
-                        </div>
-                        <span className={`text-xs font-medium ${textMuted}`}>{['M','T','W','T','F','S','S'][i]}</span>
-                        </div>
-                    ))}
-                    </div>
-                </div>
-
-                <div className={`animate-slide-up ${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`} style={{animationDelay: '200ms'}}>
-                    <h3 className={`font-bold mb-6 text-lg ${textTitle}`}>Top Aesthetics</h3>
-                    <div className="space-y-6">
-                        <StyleBar label="Hyper Realistic" percent="92%" color="bg-indigo-500" theme={theme} />
-                        <StyleBar label="Cyberpunk" percent="68%" color="bg-fuchsia-500" theme={theme} />
-                        <StyleBar label="Cinematic" percent="45%" color="bg-blue-500" theme={theme} />
-                    </div>
-                </div>
-                </div>
+                <div><h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Insights</h2><p className={`${textMuted} mt-1`}>Growth metrics.</p></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6"><GlassStat icon={Users} label="Followers" value={user.followers} trend="+12%" color="text-indigo-400" theme={theme} /><GlassStat icon={TrendingUp} label="Engagement" value="8.4%" trend="+2.1%" color="text-fuchsia-400" theme={theme} /><GlassStat icon={Eye} label="Reach" value="124k" trend="+5.4%" color="text-blue-400" theme={theme} /></div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"><div className={`lg:col-span-2 ${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`}><h3 className={`font-bold mb-8 text-lg ${textTitle}`}>Weekly Engagement</h3><div className="h-64 flex items-end justify-between gap-4 px-2">{[45, 60, 35, 80, 70, 90, 100].map((h, i) => (<div key={i} className="flex-1 flex flex-col items-center gap-3 group"><div className={`w-full rounded-t-2xl relative overflow-hidden h-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}><div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-600 to-fuchsia-600 rounded-t-2xl transition-all duration-1000 ease-out opacity-80 group-hover:opacity-100" style={{ height: `${h}%` }}></div></div><span className={`text-xs font-medium ${textMuted}`}>{['M','T','W','T','F','S','S'][i]}</span></div>))}</div></div><div className={`${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`}><h3 className={`font-bold mb-6 text-lg ${textTitle}`}>Top Aesthetics</h3><div className="space-y-6"><StyleBar label="Hyper Realistic" percent="92%" color="bg-indigo-500" theme={theme} /><StyleBar label="Cyberpunk" percent="68%" color="bg-fuchsia-500" theme={theme} /><StyleBar label="Cinematic" percent="45%" color="bg-blue-500" theme={theme} /></div></div></div>
             </div>
             )
         };
@@ -1501,66 +787,18 @@
             const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/5' : 'bg-white/60 border-black/5';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
-
-            return (
-            <div className={`animate-scale-in ${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group ease-spring`}>
-                <div className={`absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity ${color}`}>
-                    <Icon size={48} />
-                </div>
-                <div className="relative z-10">
-                    <div className={`text-3xl font-bold mb-1 ${textMain}`}>{value}</div>
-                    <div className={`text-sm font-medium mb-4 ${textMuted}`}>{label}</div>
-                    <div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'} ${color}`}>
-                        <TrendingUp size={12} /> {trend}
-                    </div>
-                </div>
-            </div>
-            )
+            return (<div className={`${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group`}><div className={`absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity ${color}`}><Icon size={48} /></div><div className="relative z-10"><div className={`text-3xl font-bold mb-1 ${textMain}`}>{value}</div><div className={`text-sm font-medium mb-4 ${textMuted}`}>{label}</div><div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'} ${color}`}><TrendingUp size={12} /> {trend}</div></div></div>)
         };
 
-        const StyleBar = ({ label, percent, color, theme }) => (
-            <div>
-                <div className="flex justify-between text-xs font-bold mb-2">
-                <span className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>{label}</span>
-                <span className={theme === 'dark' ? 'text-white' : 'text-neutral-900'}>{percent}</span>
-                </div>
-                <div className={`h-3 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-neutral-200 border-black/5'}`}>
-                <div className={`h-full ${color} rounded-full`} style={{ width: percent }}></div>
-                </div>
-            </div>
-        );
+        const StyleBar = ({ label, percent, color, theme }) => (<div><div className="flex justify-between text-xs font-bold mb-2"><span className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>{label}</span><span className={theme === 'dark' ? 'text-white' : 'text-neutral-900'}>{percent}</span></div><div className={`h-3 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-neutral-200 border-black/5'}`}><div className={`h-full ${color} rounded-full`} style={{ width: percent }}></div></div></div>);
 
         const NavItem = ({ icon: Icon, label, count, active, onClick, theme }) => {
             const activeClass = theme === 'dark' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-black text-white shadow-lg shadow-black/10';
             const inactiveClass = theme === 'dark' ? 'text-neutral-400 hover:text-white hover:bg-white/5' : 'text-neutral-500 hover:text-black hover:bg-black/5';
-            
-            return (
-                <button 
-                    onClick={onClick}
-                    className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ease-spring ${active ? activeClass : inactiveClass}`}
-                >
-                    <div className="relative">
-                    <Icon size={22} className={active ? 'stroke-[2.5px]' : 'stroke-2'} />
-                    {count > 0 && (
-                        <span className={`absolute -top-1.5 -right-1.5 text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold border ${active ? (theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black') : (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white')} border-transparent`}>
-                        {count}
-                        </span>
-                    )}
-                    </div>
-                    <span className={`text-sm font-semibold lg:block hidden ${active ? 'tracking-wide' : ''}`}>{label}</span>
-                </button>
-            );
+            return (<button onClick={onClick} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${active ? activeClass : inactiveClass}`}><div className="relative"><Icon size={22} className={active ? 'stroke-[2.5px]' : 'stroke-2'} />{count > 0 && <span className={`absolute -top-1.5 -right-1.5 text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold border ${active ? (theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black') : (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white')} border-transparent`}>{count}</span>}</div><span className={`text-sm font-semibold lg:block hidden ${active ? 'tracking-wide' : ''}`}>{label}</span></button>);
         };
 
-        const MobileNavItem = ({ icon: Icon, active, onClick, count, theme }) => (
-            <button onClick={onClick} className="relative p-3">
-                <div className={`absolute inset-0 rounded-2xl scale-0 transition-transform ${active ? 'scale-100' : ''} ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}></div>
-                <Icon size={24} className={`relative z-10 transition-colors ${active ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-neutral-500'}`} />
-                {count > 0 && (
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full border border-black"></span>
-                )}
-            </button>
-        );
+        const MobileNavItem = ({ icon: Icon, active, onClick, count, theme }) => (<button onClick={onClick} className="relative p-3"><div className={`absolute inset-0 rounded-2xl scale-0 transition-transform ${active ? 'scale-100' : ''} ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}></div><Icon size={24} className={`relative z-10 transition-colors ${active ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-neutral-500'}`} />{count > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full border border-black"></span>}</button>);
 
         const root = createRoot(document.getElementById('root'));
         root.render(<App />);
