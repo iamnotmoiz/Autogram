@@ -117,17 +117,17 @@
                 const gain = ctx.createGain();
 
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(600, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.05);
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.04);
 
-                gain.gain.setValueAtTime(0.05, ctx.currentTime); // Low volume
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.08, ctx.currentTime); // Low volume
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
 
                 osc.connect(gain);
                 gain.connect(ctx.destination);
 
                 osc.start();
-                osc.stop(ctx.currentTime + 0.05);
+                osc.stop(ctx.currentTime + 0.04);
             }, []);
 
             return playClick;
@@ -578,8 +578,8 @@
 
                         <div 
                             ref={containerRef}
-                            className="h-full w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative z-0 py-[74px]" 
-                            style={{ scrollBehavior: 'auto' }} // 'auto' allows for better JS control during drag, 'smooth' during snap
+                            className="h-full w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative z-0 py-[74px] flex flex-col items-center" 
+                            style={{ scrollBehavior: 'auto' }} 
                             onScroll={handleScroll}
                         >
                             {items.map((item) => (
@@ -587,7 +587,6 @@
                                     key={item.value} 
                                     onClick={() => {
                                         onSelect(item.value);
-                                        // Scroll to item on click
                                         const idx = items.findIndex(i => i.value === item.value);
                                         if (containerRef.current) {
                                             playClick();
@@ -597,7 +596,7 @@
                                             });
                                         }
                                     }}
-                                    className={`h-[44px] flex items-center justify-center snap-center cursor-pointer transition-all duration-200 select-none ${item.value === selectedValue ? (theme === 'dark' ? 'text-white font-medium text-xl' : 'text-black font-medium text-xl') : 'text-neutral-500 text-lg opacity-60'}`}
+                                    className={`h-[44px] w-full flex items-center justify-center snap-center cursor-pointer transition-all duration-200 select-none ${item.value === selectedValue ? (theme === 'dark' ? 'text-white font-medium text-xl' : 'text-black font-medium text-xl') : 'text-neutral-500 text-lg opacity-60'}`}
                                     style={{
                                         transform: item.value === selectedValue ? 'scale(1.1)' : 'scale(0.9) rotateX(20deg)',
                                         opacity: item.value === selectedValue ? 1 : 0.4
@@ -1109,15 +1108,31 @@
 
                         <div className="space-y-8">
                             <div>
-                                <div className={`rounded-3xl p-6 flex items-center justify-center gap-3 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
-                                    <div className="flex-1">
-                                        <RouletteWheel items={dayItems} selectedValue={selectedDate} onSelect={setSelectedDate} label="Date" theme={theme} />
-                                    </div>
-                                    <div className="w-[1px] h-16 bg-white/10"></div>
-                                    <RouletteWheel items={hourItems} selectedValue={selectedHour} onSelect={setSelectedHour} label="Hr" theme={theme} />
-                                    <RouletteWheel items={minItems} selectedValue={selectedMinute} onSelect={setSelectedMinute} label="Min" theme={theme} />
-                                    <RouletteWheel items={amPmItems} selectedValue={amPm} onSelect={setAmPm} label="Meridiem" theme={theme} />
+                                {/* Horizontal Scrolling Day Selector */}
+                                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
+                                    {dayItems.map((day, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setSelectedDate(day.value)}
+                                            className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                                                selectedDate === day.value 
+                                                    ? activeChip 
+                                                    : inactiveChip
+                                            }`}
+                                        >
+                                            {day.label}
+                                        </button>
+                                    ))}
                                 </div>
+                            </div>
+
+                            <div className={`rounded-3xl p-6 flex items-center justify-center gap-3 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
+                                {/* Removed Date Wheel from here since it's now horizontal above */}
+                                <RouletteWheel items={hourItems} selectedValue={selectedHour} onSelect={setSelectedHour} label="Hr" theme={theme} />
+                                <span className={`text-2xl font-light ${theme === 'dark' ? 'text-neutral-600' : 'text-neutral-300'} mb-6`}>:</span>
+                                <RouletteWheel items={minItems} selectedValue={selectedMinute} onSelect={setSelectedMinute} label="Min" theme={theme} />
+                                <span className={`text-2xl font-light ${theme === 'dark' ? 'text-neutral-600' : 'text-neutral-300'} mb-6`}>:</span>
+                                <RouletteWheel items={amPmItems} selectedValue={amPm} onSelect={setAmPm} label="Meridiem" theme={theme} />
                             </div>
 
                             <button onClick={handleConfirm} className={`w-full h-14 rounded-2xl font-bold transition-all active:scale-95 text-lg ${theme === 'dark' ? 'bg-white hover:bg-neutral-200 text-black' : 'bg-black hover:bg-neutral-800 text-white'}`}>
