@@ -11,8 +11,25 @@
         tailwind.config = {
             theme: {
                 extend: {
+                    keyframes: {
+                        'slide-up-fade': {
+                            '0%': { opacity: 0, transform: 'translateY(20px) scale(0.98)' },
+                            '100%': { opacity: 1, transform: 'translateY(0) scale(1)' },
+                        },
+                        'scale-in': {
+                            '0%': { opacity: 0, transform: 'scale(0.9)' },
+                            '100%': { opacity: 1, transform: 'scale(1)' },
+                        },
+                        'slide-in-right': {
+                            '0%': { opacity: 0, transform: 'translateX(20px)' },
+                            '100%': { opacity: 1, transform: 'translateX(0)' },
+                        }
+                    },
                     animation: {
                         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-up': 'slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'scale-in': 'scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'slide-in-right': 'slide-in-right 0.4s ease-out forwards',
                     },
                     fontFamily: {
                         sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
@@ -169,8 +186,8 @@
                 : "opacity-100 rotate-0 scale-100 duration-500 ease-spring delay-100";
 
             return (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 animate-scale-in">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-500" onClick={onClose}></div>
                     <div className={`relative w-full max-w-sm rounded-[32px] border p-8 shadow-2xl overflow-hidden flex flex-col items-center text-center transition-all duration-500 ease-spring ${bgClass}`}>
                         
                         {/* Skip Button */}
@@ -396,7 +413,7 @@
 
                 {/* Auto-Pilot Notification Bar */}
                 {autoPilot.active && (
-                    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[95%] max-w-md px-2">
+                    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[95%] max-w-md px-2 animate-slide-up">
                         <AutoPilotStatus 
                             autoPilot={autoPilot} 
                             theme={theme} 
@@ -442,33 +459,36 @@
                 {/* Main Content Area - Increased pb-40 to prevent content hiding behind dock */}
                 <main className="flex-1 md:ml-32 lg:ml-80 p-4 md:p-6 pb-40 md:pb-6 relative z-10 h-screen overflow-y-auto no-scrollbar scroll-smooth">
                     <div className="max-w-6xl mx-auto space-y-8 pt-12 md:pt-4">
-                    {activeTab === 'generate' && (
-                        <Generator 
-                            user={user} 
-                            onSchedule={handleAddPost} 
-                            theme={theme} 
-                            autoPilot={autoPilot} 
-                            setAutoPilot={setAutoPilot}
-                            setShowAutoPilotModal={setShowAutoPilotModal}
-                            setPendingAutoTopic={setPendingAutoTopic}
-                            pendingAutoTopic={pendingAutoTopic}
-                            generateGeminiCaption={generateGeminiCaption}
-                            generateImage={generateImage} // Pass the unified generator
-                        />
-                    )}
-                    {activeTab === 'schedule' && <Scheduler posts={scheduledPosts} onDelete={handleDeletePost} theme={theme} />}
-                    {activeTab === 'analytics' && <Analytics user={user} theme={theme} />}
-                    {activeTab === 'settings' && (
-                        <SettingsTab 
-                            user={user} 
-                            theme={theme} 
-                            toggleTheme={toggleTheme} 
-                            onLogout={() => setIsConnected(false)} 
-                            apiKey={apiKey} 
-                            onSaveApiKey={handleSaveApiKey}
-                            onShowTutorial={() => setShowTutorial(true)} 
-                        />
-                    )}
+                        {/* Page Transition Wrapper */}
+                        <div key={activeTab} className="animate-slide-up">
+                            {activeTab === 'generate' && (
+                                <Generator 
+                                    user={user} 
+                                    onSchedule={handleAddPost} 
+                                    theme={theme} 
+                                    autoPilot={autoPilot} 
+                                    setAutoPilot={setAutoPilot}
+                                    setShowAutoPilotModal={setShowAutoPilotModal}
+                                    setPendingAutoTopic={setPendingAutoTopic}
+                                    pendingAutoTopic={pendingAutoTopic}
+                                    generateGeminiCaption={generateGeminiCaption}
+                                    generateImage={generateImage} // Pass the unified generator
+                                />
+                            )}
+                            {activeTab === 'schedule' && <Scheduler posts={scheduledPosts} onDelete={handleDeletePost} theme={theme} />}
+                            {activeTab === 'analytics' && <Analytics user={user} theme={theme} />}
+                            {activeTab === 'settings' && (
+                                <SettingsTab 
+                                    user={user} 
+                                    theme={theme} 
+                                    toggleTheme={toggleTheme} 
+                                    onLogout={() => setIsConnected(false)} 
+                                    apiKey={apiKey} 
+                                    onSaveApiKey={handleSaveApiKey}
+                                    onShowTutorial={() => setShowTutorial(true)} 
+                                />
+                            )}
+                        </div>
                     </div>
                 </main>
 
@@ -673,7 +693,7 @@
             const textMuted = theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400';
 
             return (
-                <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4">
+                <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4 animate-scale-in">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose}></div>
                     <div className={`${bgClass} border p-6 md:p-8 rounded-t-[32px] md:rounded-[32px] w-full max-w-md shadow-2xl relative animate-in slide-in-from-bottom-10 duration-300`}>
                         <div className="flex justify-between items-center mb-6">
@@ -1077,7 +1097,7 @@
             const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400 hover:bg-white/10' : 'bg-black/5 text-neutral-600 hover:bg-black/10';
 
             return (
-                <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4">
+                <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4 animate-scale-in">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose}></div>
                     <div className={`${bgClass} border p-6 md:p-8 rounded-t-[32px] md:rounded-[32px] w-full max-w-md shadow-2xl relative animate-in slide-in-from-bottom-10 duration-300`}>
                         <div className="flex justify-between items-center mb-6">
@@ -1110,7 +1130,7 @@
         }
 
         const PostCard = ({ post, isPosted, onDelete, glassClass, textTitle, textMuted }) => (
-            <div key={post.id} className={`${glassClass} backdrop-blur-xl border p-4 rounded-[24px] flex gap-4 group hover:scale-[1.02] transition-all duration-300`}>
+            <div key={post.id} className={`${glassClass} backdrop-blur-xl border p-4 rounded-[24px] flex gap-4 group hover:scale-[1.02] transition-all duration-300 ease-spring`}>
                 <div className="w-24 h-24 shrink-0 rounded-2xl overflow-hidden shadow-lg bg-neutral-800">
                     <img src={post.imageUrl} alt="Thumbnail" className="w-full h-full object-cover" />
                 </div>
@@ -1256,7 +1276,7 @@
                         <p className={`${textMuted} mt-1`}>Manage your preferences.</p>
                     </div>
 
-                    <div className={`${glassClass} backdrop-blur-xl border rounded-[32px] overflow-hidden`}>
+                    <div className={`animate-slide-up ${glassClass} backdrop-blur-xl border rounded-[32px] overflow-hidden`}>
                         
                         <div className="p-6 border-b border-white/5">
                             <div className="flex items-center justify-between mb-4">
@@ -1432,7 +1452,7 @@
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className={`lg:col-span-2 ${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`}>
+                <div className={`lg:col-span-2 animate-slide-up ${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`} style={{animationDelay: '100ms'}}>
                     <h3 className={`font-bold mb-8 text-lg ${textTitle}`}>Weekly Engagement</h3>
                     <div className="h-64 flex items-end justify-between gap-4 px-2">
                     {[45, 60, 35, 80, 70, 90, 100].map((h, i) => (
@@ -1449,7 +1469,7 @@
                     </div>
                 </div>
 
-                <div className={`${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`}>
+                <div className={`animate-slide-up ${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`} style={{animationDelay: '200ms'}}>
                     <h3 className={`font-bold mb-6 text-lg ${textTitle}`}>Top Aesthetics</h3>
                     <div className="space-y-6">
                         <StyleBar label="Hyper Realistic" percent="92%" color="bg-indigo-500" theme={theme} />
@@ -1468,7 +1488,7 @@
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
 
             return (
-            <div className={`${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group`}>
+            <div className={`animate-scale-in ${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group ease-spring`}>
                 <div className={`absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity ${color}`}>
                     <Icon size={48} />
                 </div>
@@ -1502,7 +1522,7 @@
             return (
                 <button 
                     onClick={onClick}
-                    className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${active ? activeClass : inactiveClass}`}
+                    className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ease-spring ${active ? activeClass : inactiveClass}`}
                 >
                     <div className="relative">
                     <Icon size={22} className={active ? 'stroke-[2.5px]' : 'stroke-2'} />
