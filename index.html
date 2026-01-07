@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AutoGram AI - Demo</title>
+    <title>Ghost - Demo</title>
     
     <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -84,7 +84,7 @@
             Instagram, Wand2, Calendar, Settings, LogOut, CheckCircle2, 
             Image as ImageIcon, Send, Loader2, BarChart3, Trash2, TrendingUp, 
             Users, Eye, Clock, Upload, User, Edit3, X, Plus, Moon, Sun, 
-            Shield, Smartphone, Check, Play, Square, History, Hourglass, Zap, Key, ExternalLink, AlertTriangle, HelpCircle, ArrowRight, Film, Info
+            Shield, Smartphone, Check, Play, Square, History, Hourglass, Zap, Key, ExternalLink, AlertTriangle, HelpCircle, ArrowRight, Film, Info, Ghost
         } from 'lucide-react';
 
         // --- Shared Hooks & Utilities ---
@@ -117,12 +117,12 @@
             return (
                 <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center font-sans">
                     <div className="relative">
-                        <div className="w-24 h-24 bg-gradient-to-tr from-indigo-500 to-fuchsia-500 rounded-full blur-xl animate-pulse-glow absolute top-0 left-0"></div>
-                        <div className="w-24 h-24 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] flex items-center justify-center relative z-10 shadow-2xl">
-                             <Instagram className="text-white w-10 h-10 animate-bounce" />
+                        <div className="w-24 h-24 bg-purple-600 rounded-full blur-xl animate-pulse-glow absolute top-0 left-0"></div>
+                        <div className="w-24 h-24 bg-purple-600 rounded-[2rem] flex items-center justify-center relative z-10 shadow-2xl">
+                             <Ghost className="text-white w-10 h-10 animate-bounce" />
                         </div>
                     </div>
-                    <h1 className="mt-8 text-2xl font-bold tracking-tight text-white animate-pulse">AutoGram</h1>
+                    <h1 className="mt-8 text-2xl font-bold tracking-tight text-white animate-pulse">Ghost</h1>
                     <div className="mt-4 w-48 h-1 bg-neutral-800 rounded-full overflow-hidden">
                         <div className="h-full bg-white animate-progress"></div>
                     </div>
@@ -130,147 +130,80 @@
             );
         };
 
-        const GlassStat = ({ icon: Icon, label, value, trend, color, theme }) => {
-            const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/5' : 'bg-white/60 border-black/5';
-            const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
-            const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
-            return (<div className={`${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group`}><div className={`absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity ${color}`}><Icon size={48} /></div><div className="relative z-10"><div className={`text-3xl font-bold mb-1 ${textMain}`}>{value}</div><div className={`text-sm font-medium mb-4 ${textMuted}`}>{label}</div><div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'} ${color}`}><TrendingUp size={12} /> {trend}</div></div></div>)
-        };
-
-        const StyleBar = ({ label, percent, color, theme }) => (<div><div className="flex justify-between text-xs font-bold mb-2"><span className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>{label}</span><span className={theme === 'dark' ? 'text-white' : 'text-neutral-900'}>{percent}</span></div><div className={`h-3 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-neutral-200 border-black/5'}`}><div className={`h-full ${color} rounded-full`} style={{ width: percent }}></div></div></div>);
-
         const NavItem = ({ id, icon: Icon, label, count, active, onClick, theme }) => {
             const activeClass = theme === 'dark' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-black text-white shadow-lg shadow-black/10';
             const inactiveClass = theme === 'dark' ? 'text-neutral-400 hover:text-white hover:bg-white/5' : 'text-neutral-500 hover:text-black hover:bg-black/5';
-            return (<button id={id} onClick={onClick} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${active ? activeClass : inactiveClass}`}><div className="relative"><Icon size={22} className={active ? 'stroke-[2.5px]' : 'stroke-2'} />{count > 0 && <span className={`absolute -top-1.5 -right-1.5 text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold border ${active ? (theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black') : (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white')} border-transparent`}>{count}</span>}</div><span className={`text-sm font-semibold lg:block hidden ${active ? 'tracking-wide' : ''}`}>{label}</span></button>);
-        };
-        const MobileNavItem = ({ id, icon: Icon, active, onClick, count, theme }) => (<button id={id} onClick={onClick} className="relative p-3"><div className={`absolute inset-0 rounded-2xl scale-0 transition-transform ${active ? 'scale-100' : ''} ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}></div><Icon size={24} className={`relative z-10 transition-colors ${active ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-neutral-500'}`} />{count > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full border border-black"></span>}</button>);
-
-
-        // --- Complex Components ---
-        const TooltipSystem = ({ active, onComplete, onStepChange }) => {
-            const [step, setStep] = useState(0);
-            const [coords, setCoords] = useState(null);
-            
-            const steps = [
-                { id: 'nav-generate', text: "Start here to create content.", position: "right" },
-                { id: 'action-autopilot', text: "Set it and forget it. Automate your posts.", position: "bottom" },
-                { id: 'action-generate', text: "Customize prompt & style manually.", position: "bottom" },
-                { id: 'nav-schedule', text: "View your queue & history.", position: "right" },
-                { id: 'nav-settings', text: "Configure API keys here.", position: "right" }
-            ];
-
-            useEffect(() => {
-                if (!active) return;
-                const updatePosition = () => {
-                    if (!steps[step]) return;
-                    const targetId = steps[step].id;
-                    const el = document.getElementById(targetId);
-                    if (el) {
-                        const rect = el.getBoundingClientRect();
-                        if (rect.width > 0 && rect.height > 0) {
-                            setCoords(rect);
-                        }
-                        onStepChange(targetId); 
-                    }
-                };
-                
-                const timer = setTimeout(updatePosition, 350); 
-                window.addEventListener('resize', updatePosition);
-                return () => {
-                    clearTimeout(timer);
-                    window.removeEventListener('resize', updatePosition);
-                }
-            }, [step, active]);
-
-            if (!active || !coords || !steps[step]) return null;
-
-            const isMobile = window.innerWidth < 768;
-            const currentTip = steps[step];
-            let top, left, transform;
-            
-            if (isMobile) {
-                // Mobile specific positioning logic
-                // Check if target is in bottom nav (nav-*)
-                if (currentTip.id.startsWith('nav-')) {
-                   // Place above the bottom menu
-                   top = coords.top - 20;
-                   left = coords.left + (coords.width / 2);
-                   transform = 'translate(-50%, -100%)';
-                } else {
-                   // Default fallback for mobile
-                   top = coords.top - 10;
-                   left = coords.left + (coords.width / 2);
-                   transform = 'translate(-50%, -100%)';
-                }
-                 // Special case for Autopilot on mobile to prevent offscreen
-                 if(currentTip.id === 'action-autopilot') {
-                    top = coords.bottom + 10;
-                    left = coords.left + (coords.width / 2);
-                    transform = 'translate(-50%, 0)';
-                }
-            } else {
-                // Desktop Positioning logic
-                if (currentTip.position === 'bottom') {
-                    top = coords.bottom + 10;
-                    left = coords.left + (coords.width / 2);
-                    transform = 'translate(-50%, 0)';
-                } else {
-                    // Default right
-                    top = coords.top + (coords.height / 2);
-                    left = coords.right + 10;
-                    transform = 'translate(0, -50%)';
-                }
-            }
-
-            const handleNext = () => {
-                if (step < steps.length - 1) setStep(step + 1);
-                else onComplete();
-            };
-
-            const holeX = coords.left + coords.width/2;
-            const holeY = coords.top + coords.height/2;
-            const holeSize = Math.max(coords.width, coords.height)/2 + 10;
-
             return (
-                <div className="fixed inset-0 z-[160] pointer-events-none">
-                    <div 
-                        className="absolute inset-0 bg-black/60 transition-all duration-500 ease-in-out" 
-                        style={{
-                            maskImage: `radial-gradient(circle at ${holeX}px ${holeY}px, transparent ${holeSize}px, black ${holeSize + 5}px)`,
-                            WebkitMaskImage: `radial-gradient(circle at ${holeX}px ${holeY}px, transparent ${holeSize}px, black ${holeSize + 5}px)`
-                        }} 
-                    />
-                    <div 
-                        className="absolute bg-white text-black p-4 rounded-2xl shadow-2xl w-48 pointer-events-auto flex flex-col gap-3 animate-scale-in origin-center" 
-                        style={{ 
-                            top: top, 
-                            left: left, 
-                            transform: transform, 
-                            marginTop: 0 
-                        }}
-                    >
-                         <div className="flex justify-between items-start">
-                            <p className="text-xs font-semibold">{currentTip.text}</p>
-                            <button onClick={onComplete} className="text-[10px] font-bold text-neutral-400 hover:text-black uppercase tracking-wider ml-2">Skip</button>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-[10px] text-neutral-500">{step + 1} / {steps.length}</span>
-                            <button onClick={handleNext} className="bg-black text-white p-1.5 rounded-full hover:bg-neutral-800 transition-colors"><ArrowRight size={12} /></button>
-                        </div>
-                        {/* Dynamic Arrow Placement based on position - Simplified */}
-                         <div 
-                            className="absolute w-3 h-3 bg-white rotate-45"
-                            style={isMobile ? {
-                                 ...(currentTip.id === 'action-autopilot' ? {top: -6, left: '50%', transform: 'translateX(-50%)'} : {bottom: -6, left: '50%', transform: 'translateX(-50%)'})
-                            } : {
-                                ...(currentTip.position === 'bottom' ? {top: -6, left: '50%', transform: 'translateX(-50%)'} : {left: -6, top: '50%', transform: 'translateY(-50%)'})
-                            }}
-                        />
+                <button id={id} onClick={onClick} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${active ? activeClass : inactiveClass}`}>
+                    <div className="relative">
+                    <Icon size={22} className={active ? 'stroke-[2.5px]' : 'stroke-2'} />
+                    {count > 0 && (
+                        <span className={`absolute -top-1.5 -right-1.5 text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold border ${active ? (theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black') : (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white')} border-transparent`}>
+                        {count}
+                        </span>
+                    )}
                     </div>
-                </div>
+                    <span className={`text-sm font-semibold lg:block hidden ${active ? 'tracking-wide' : ''}`}>{label}</span>
+                </button>
             );
         };
+
+        const MobileNavItem = ({ id, icon: Icon, active, onClick, count, theme }) => (
+            <button id={id} onClick={onClick} className="relative p-3">
+                <div className={`absolute inset-0 rounded-2xl scale-0 transition-transform ${active ? 'scale-100' : ''} ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}></div>
+                <Icon size={24} className={`relative z-10 transition-colors ${active ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-neutral-500'}`} />
+                {count > 0 && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full border border-black"></span>
+                )}
+            </button>
+        );
+
+        const GlassStat = ({ icon: Icon, label, value, trend, color, theme }) => {
+            const glassClass = theme === 'dark' ? 'bg-white/10 border-white/5' : 'bg-white/60 border-black/5';
+            const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
+            const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
+            return (
+                <div className={`${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group`}>
+                    <div className={`absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity ${color}`}><Icon size={48} /></div>
+                    <div className="relative z-10">
+                        <div className={`text-3xl font-bold mb-1 ${textMain}`}>{value}</div>
+                        <div className={`text-sm font-medium mb-4 ${textMuted}`}>{label}</div>
+                        <div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'} ${color}`}><TrendingUp size={12} /> {trend}</div>
+                    </div>
+                </div>
+            )
+        };
+
+        const StyleBar = ({ label, percent, color, theme }) => (
+            <div>
+                <div className="flex justify-between text-xs font-bold mb-2">
+                    <span className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>{label}</span>
+                    <span className={theme === 'dark' ? 'text-white' : 'text-neutral-900'}>{percent}</span>
+                </div>
+                <div className={`h-3 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-neutral-200 border-black/5'}`}>
+                    <div className={`h-full ${color} rounded-full`} style={{ width: percent }}></div>
+                </div>
+            </div>
+        );
+
+        const PostCard = ({ post, isPosted, onDelete, glassClass, textTitle, textMuted }) => (
+            <div key={post.id} className={`${glassClass} backdrop-blur-xl border p-4 rounded-[24px] flex gap-4 group hover:scale-[1.02] transition-all duration-300 ease-spring`}>
+                <div className="w-24 h-24 shrink-0 rounded-2xl overflow-hidden shadow-lg bg-neutral-800">
+                    <img src={post.imageUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+                    <div>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border ${isPosted ? 'bg-blue-500/20 text-blue-400 border-blue-500/10' : 'bg-green-500/20 text-green-500 border-green-500/10'}`}>
+                            {isPosted ? <Check size={12} /> : <Hourglass size={12} />} 
+                            {isPosted ? 'Posted' : 'Upcoming'}
+                        </span>
+                        <h4 className={`font-medium truncate text-sm ${textTitle}`}>{new Date(post.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h4>
+                        <p className={`${textMuted} text-xs mt-0.5`}>{new Date(post.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <div className="flex justify-end"><button onClick={() => onDelete(post.id)} className={`${textMuted} hover:text-red-400 transition-colors p-2`} title="Remove"><Trash2 size={16} /></button></div>
+                </div>
+            </div>
+        );
 
         const RouletteWheel = ({ items, selectedValue, onSelect, label, theme }) => {
             const containerRef = useRef(null);
@@ -321,13 +254,104 @@
             );
         };
 
+        // --- Complex Components (Modals, Systems) ---
+
+        const TooltipSystem = ({ active, onComplete, onStepChange }) => {
+            const [step, setStep] = useState(0);
+            const [coords, setCoords] = useState(null);
+            
+            const steps = [
+                { id: 'nav-generate', text: "Start here to create content.", position: "right" },
+                { id: 'action-autopilot', text: "Set it and forget it. Automate your posts.", position: "bottom" },
+                { id: 'action-generate', text: "Customize prompt & style manually.", position: "bottom" },
+                { id: 'nav-schedule', text: "View your queue & history.", position: "right" },
+                { id: 'nav-settings', text: "Configure API keys here.", position: "right" }
+            ];
+
+            useEffect(() => {
+                if (!active) return;
+                const updatePosition = () => {
+                    if (!steps[step]) return;
+                    const targetId = steps[step].id;
+                    const el = document.getElementById(targetId);
+                    if (el) {
+                        const rect = el.getBoundingClientRect();
+                        if (rect.width > 0 && rect.height > 0) {
+                            setCoords(rect);
+                        }
+                        onStepChange(targetId); 
+                    }
+                };
+                
+                const timer = setTimeout(updatePosition, 350); 
+                window.addEventListener('resize', updatePosition);
+                return () => {
+                    clearTimeout(timer);
+                    window.removeEventListener('resize', updatePosition);
+                }
+            }, [step, active]);
+
+            if (!active || !coords || !steps[step]) return null;
+
+            const isMobile = window.innerWidth < 768;
+            const currentTip = steps[step];
+            let top, left, transform;
+            
+            if (isMobile) {
+                if (currentTip.id.startsWith('nav-')) {
+                   top = coords.top - 20;
+                   left = coords.left + (coords.width / 2);
+                   transform = 'translate(-50%, -100%)';
+                } else {
+                   top = coords.top - 10;
+                   left = coords.left + (coords.width / 2);
+                   transform = 'translate(-50%, -100%)';
+                }
+                 if(currentTip.id === 'action-autopilot') {
+                    top = coords.bottom + 10;
+                    left = coords.left + (coords.width / 2);
+                    transform = 'translate(-50%, 0)';
+                }
+            } else {
+                if (currentTip.position === 'bottom') {
+                    top = coords.bottom + 10;
+                    left = coords.left + (coords.width / 2);
+                    transform = 'translate(-50%, 0)';
+                } else {
+                    top = coords.top + (coords.height / 2);
+                    left = coords.right + 10;
+                    transform = 'translate(0, -50%)';
+                }
+            }
+
+            const handleNext = () => {
+                if (step < steps.length - 1) setStep(step + 1);
+                else onComplete();
+            };
+
+            const holeX = coords.left + coords.width/2;
+            const holeY = coords.top + coords.height/2;
+            const holeSize = Math.max(coords.width, coords.height)/2 + 10;
+
+            return (
+                <div className="fixed inset-0 z-[160] pointer-events-none">
+                    <div className="absolute inset-0 bg-black/60 transition-all duration-500 ease-in-out" style={{ maskImage: `radial-gradient(circle at ${holeX}px ${holeY}px, transparent ${holeSize}px, black ${holeSize + 5}px)`, WebkitMaskImage: `radial-gradient(circle at ${holeX}px ${holeY}px, transparent ${holeSize}px, black ${holeSize + 5}px)` }} />
+                    <div className="absolute bg-white text-black p-4 rounded-2xl shadow-2xl w-48 pointer-events-auto flex flex-col gap-3 animate-scale-in origin-center" style={{ top: top, left: left, transform: transform, marginTop: 0 }}>
+                         <div className="flex justify-between items-start"><p className="text-xs font-semibold">{currentTip.text}</p><button onClick={onComplete} className="text-[10px] font-bold text-neutral-400 hover:text-black uppercase tracking-wider ml-2">Skip</button></div>
+                        <div className="flex justify-between items-center"><span className="text-[10px] text-neutral-500">{step + 1} / {steps.length}</span><button onClick={handleNext} className="bg-black text-white p-1.5 rounded-full hover:bg-neutral-800 transition-colors"><ArrowRight size={12} /></button></div>
+                        <div className="absolute w-3 h-3 bg-white rotate-45" style={isMobile ? { ...(currentTip.id === 'action-autopilot' ? {top: -6, left: '50%', transform: 'translateX(-50%)'} : {bottom: -6, left: '50%', transform: 'translateX(-50%)'}) } : { ...(currentTip.position === 'bottom' ? {top: -6, left: '50%', transform: 'translateX(-50%)'} : {left: -6, top: '50%', transform: 'translateY(-50%)'}) }} />
+                    </div>
+                </div>
+            );
+        };
+
         const TutorialModal = ({ onClose, theme }) => {
             const [slide, setSlide] = useState(0);
             const [isExiting, setIsExiting] = useState(false);
             
             const slides = [
-                { title: "Welcome to AutoGram", desc: "Your autonomous AI social media manager.", icon: <Wand2 size={48} className="text-indigo-500" /> },
-                { title: "Auto-Pilot Mode", desc: "Set a topic and frequency. AutoGram generates content automatically.", icon: <Zap size={48} className="text-yellow-500" /> },
+                { title: "Welcome to Ghost", desc: "Your autonomous AI social media manager.", icon: <Ghost size={48} className="text-indigo-500" /> },
+                { title: "Auto-Pilot Mode", desc: "Set a topic and frequency. Ghost generates content automatically.", icon: <Zap size={48} className="text-yellow-500" /> },
                 { title: "Smart Scheduler", desc: "Review your content queue and history in the Calendar tab.", icon: <Calendar size={48} className="text-green-500" /> },
                 { title: "Unlock Pro Quality", desc: "Add your Google Gemini API Key in Settings for pro-level generation.", icon: <Key size={48} className="text-pink-500" /> }
             ];
@@ -452,7 +476,7 @@
                 <div className="min-h-screen bg-black flex items-center justify-center p-6 relative overflow-hidden font-sans">
                     <div className="absolute inset-0 z-0"><div className="absolute top-[-20%] left-[-10%] w-[80%] h-[80%] bg-indigo-600/20 rounded-full blur-[150px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-fuchsia-600/20 rounded-full blur-[150px]"></div></div>
                     <div className="w-full max-w-sm bg-white/5 backdrop-blur-3xl border border-white/10 p-8 rounded-[40px] shadow-2xl relative z-10">
-                        <div className="text-center mb-10"><div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-3xl mx-auto mb-6 flex items-center justify-center shadow-lg"><Instagram className="text-white w-10 h-10" /></div><h1 className="text-3xl font-bold text-white mb-2">AutoGram</h1><p className="text-neutral-400 text-sm">Next-gen automation for creators.</p></div>
+                        <div className="text-center mb-10"><div className="w-20 h-20 bg-purple-600 rounded-3xl mx-auto mb-6 flex items-center justify-center shadow-lg"><Ghost className="text-white w-10 h-10" /></div><h1 className="text-3xl font-bold text-white mb-2">Ghost</h1><p className="text-neutral-400 text-sm">Touch grass. We'll post.</p></div>
                         <div className="flex bg-black/20 p-1.5 rounded-2xl mb-8 relative"><div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-neutral-800 rounded-xl shadow-lg transition-all duration-300 ease-out ${mode === 'demo' ? 'left-1.5' : 'left-[calc(50%+3px)]'}`}></div><button onClick={() => setMode('demo')} className={`flex-1 py-2.5 text-xs font-semibold rounded-xl relative z-10 transition-colors ${mode === 'demo' ? 'text-white' : 'text-neutral-400'}`}>Demo Mode</button><button onClick={() => setMode('custom')} className={`flex-1 py-2.5 text-xs font-semibold rounded-xl relative z-10 transition-colors ${mode === 'custom' ? 'text-white' : 'text-neutral-400'}`}>Live Mode</button></div>
                         {mode === 'demo' ? (
                             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500"><button onClick={handleDemoLogin} disabled={loading} className="w-full h-14 bg-white hover:bg-neutral-100 text-black rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 group shadow-xl shadow-white/5">{loading ? <Loader2 className="animate-spin text-black" /> : <span>Enter Dashboard</span>}</button></div>
@@ -558,8 +582,9 @@
 
             const bgClass = theme === 'dark' ? 'bg-neutral-900 border-white/10' : 'bg-white border-black/10';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
+            const textMuted = theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400';
             const activeChip = theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white';
-            const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400' : 'bg-black/5 text-neutral-600';
+            const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400 hover:bg-white/10' : 'bg-black/5 text-neutral-600 hover:bg-black/10';
 
             return (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4 animate-scale-in">
@@ -615,25 +640,6 @@
             );
         };
 
-        const PostCard = ({ post, isPosted, onDelete, glassClass, textTitle, textMuted }) => (
-            <div key={post.id} className={`${glassClass} backdrop-blur-xl border p-4 rounded-[24px] flex gap-4 group hover:scale-[1.02] transition-all duration-300 ease-spring`}>
-                <div className="w-24 h-24 shrink-0 rounded-2xl overflow-hidden shadow-lg bg-neutral-800">
-                    <img src={post.imageUrl} alt="Thumbnail" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
-                    <div>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border ${isPosted ? 'bg-blue-500/20 text-blue-400 border-blue-500/10' : 'bg-green-500/20 text-green-500 border-green-500/10'}`}>
-                            {isPosted ? <Check size={12} /> : <Hourglass size={12} />} 
-                            {isPosted ? 'Posted' : 'Upcoming'}
-                        </span>
-                        <h4 className={`font-medium truncate text-sm ${textTitle}`}>{new Date(post.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h4>
-                        <p className={`${textMuted} text-xs mt-0.5`}>{new Date(post.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                    <div className="flex justify-end"><button onClick={() => onDelete(post.id)} className={`${textMuted} hover:text-red-400 transition-colors p-2`} title="Remove"><Trash2 size={16} /></button></div>
-                </div>
-            </div>
-        );
-
         const Scheduler = ({ posts, onDelete, onAdd, theme, generateGeminiCaption }) => {
             const [showCustomUpload, setShowCustomUpload] = useState(false);
             const textTitle = theme === 'dark' ? 'text-white' : 'text-neutral-900';
@@ -679,18 +685,7 @@
                     <div><h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Settings</h2></div>
                     <div className={`${glassClass} backdrop-blur-xl border rounded-[32px] overflow-hidden`}>
                         <div className="p-6 border-b border-white/5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2">
-                                     <h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted}`}>AI Configuration</h3>
-                                     <div className="group relative">
-                                        <Info size={14} className="text-neutral-500 cursor-help" />
-                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2 bg-black border border-white/10 rounded-lg text-[10px] text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center shadow-xl">
-                                            Add your Gemini API key to enable 8K image generation and smart captions.
-                                        </div>
-                                     </div>
-                                </div>
-                                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest hover:underline ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}>Get API Key <ExternalLink size={10} /></a>
-                            </div>
+                            <div className="flex items-center justify-between mb-4"><h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted}`}>AI Configuration</h3><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest hover:underline ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}>Get API Key <ExternalLink size={10} /></a></div>
                             <div className="flex gap-2"><div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-white border-black/10'}`}><Key size={16} className={textMuted} /><input type="password" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} placeholder="Paste your Google AI Studio Key" className={`bg-transparent w-full outline-none text-sm ${textMain}`} style={{fontSize: '16px'}} /></div><button onClick={handleSave} className={`px-4 py-2 rounded-2xl font-bold text-sm transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-neutral-200' : 'bg-black text-white hover:bg-neutral-800'}`}>Save</button></div>
                         </div>
                         <div className="p-6 border-b border-white/5"><h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted} mb-4`}>Appearance</h3><div className={`flex items-center justify-between p-3 rounded-2xl transition-colors cursor-pointer ${itemHover}`} onClick={toggleTheme}><div className="flex items-center gap-3"><div className={`p-2 rounded-full ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-orange-500/20 text-orange-500'}`}>{theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}</div><div><div className={`font-semibold ${textMain}`}>Dark Mode</div></div></div><div className={`w-12 h-6 rounded-full p-1 transition-colors ${theme === 'dark' ? 'bg-indigo-600' : 'bg-neutral-300'}`}><div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div></div>
@@ -816,8 +811,8 @@
 
                     <aside className={`hidden md:flex flex-col w-24 lg:w-72 fixed left-4 top-4 bottom-4 z-50 backdrop-blur-2xl border rounded-[32px] shadow-2xl p-6 ${glassClass}`}>
                         <div className="flex items-center gap-3 mb-10 pl-2">
-                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg"><Wand2 size={20} className="text-white" /></div>
-                            <span className="hidden lg:block text-xl font-bold tracking-tight">AutoGram</span>
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg"><Ghost className="text-white w-10 h-10" /></div>
+                            <span className="hidden lg:block text-xl font-bold tracking-tight">Ghost</span>
                         </div>
                         <nav className="flex flex-col gap-2 flex-1">
                             <NavItem id="nav-generate" icon={Wand2} label="Generator" active={activeTab === 'generate'} onClick={() => setActiveTab('generate')} theme={theme} />
