@@ -16,6 +16,9 @@
                     },
                     fontFamily: {
                         sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+                    },
+                    transitionTimingFunction: {
+                        'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
                     }
                 }
             }
@@ -114,9 +117,9 @@
         };
 
         // --- Tutorial Component ---
-        // Defined early to avoid hoisting issues, though const doesn't hoist
         const TutorialModal = ({ onClose, theme }) => {
             const [slide, setSlide] = useState(0);
+            const [isExiting, setIsExiting] = useState(false);
             
             const slides = [
                 {
@@ -126,7 +129,7 @@
                 },
                 {
                     title: "Auto-Pilot Mode",
-                    desc: "Set a topic and frequency (e.g., every 4 hours). AutoGram will generate unique, high-fidelity images and captions automatically while you sleep.",
+                    desc: "Set a topic and frequency. AutoGram will generate unique, high-fidelity images and captions automatically while you sleep.",
                     icon: <Zap size={48} className="text-yellow-500" />
                 },
                 {
@@ -142,40 +145,58 @@
             ];
 
             const handleNext = () => {
-                if (slide < slides.length - 1) {
-                    setSlide(slide + 1);
-                } else {
-                    onClose();
-                }
+                setIsExiting(true);
+                setTimeout(() => {
+                    if (slide < slides.length - 1) {
+                        setSlide(slide + 1);
+                        setIsExiting(false);
+                    } else {
+                        onClose();
+                    }
+                }, 300);
             };
 
             const bgClass = theme === 'dark' ? 'bg-neutral-900/95 border-white/10 text-white' : 'bg-white/95 border-black/10 text-neutral-900';
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
 
+            // Animation classes based on state
+            const contentTransition = isExiting 
+                ? "opacity-0 -translate-x-4 scale-95 duration-300 ease-in" 
+                : "opacity-100 translate-x-0 scale-100 duration-500 ease-spring delay-75";
+            
+            const iconTransition = isExiting
+                ? "opacity-0 rotate-[-45deg] scale-50 duration-300"
+                : "opacity-100 rotate-0 scale-100 duration-500 ease-spring delay-100";
+
             return (
                 <div className="fixed inset-0 z-[150] flex items-center justify-center p-6">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-                    <div className={`relative w-full max-w-sm rounded-[32px] border p-8 shadow-2xl overflow-hidden flex flex-col items-center text-center animate-in zoom-in-95 duration-300 ${bgClass}`}>
+                    <div className={`relative w-full max-w-sm rounded-[32px] border p-8 shadow-2xl overflow-hidden flex flex-col items-center text-center transition-all duration-500 ease-spring ${bgClass}`}>
                         
                         {/* Skip Button */}
                         <button onClick={onClose} className={`absolute top-6 right-6 text-xs font-bold uppercase tracking-widest hover:opacity-70 transition-opacity ${textMuted}`}>
                             Skip
                         </button>
 
-                        {/* Content */}
-                        <div className="mt-8 mb-6 h-20 flex items-center justify-center">
-                            {slides[slide].icon}
+                        {/* Animated Icon */}
+                        <div className="mt-8 mb-6 h-20 flex items-center justify-center perspective-1000">
+                            <div className={`transform transition-all ${iconTransition}`}>
+                                {slides[slide].icon}
+                            </div>
                         </div>
                         
-                        <h3 className="text-2xl font-bold mb-3">{slides[slide].title}</h3>
-                        <p className={`text-sm leading-relaxed mb-8 ${textMuted}`}>
-                            {slides[slide].desc}
-                        </p>
+                        {/* Animated Text */}
+                        <div className={`transform transition-all ${contentTransition}`}>
+                            <h3 className="text-2xl font-bold mb-3">{slides[slide].title}</h3>
+                            <p className={`text-sm leading-relaxed mb-8 ${textMuted}`}>
+                                {slides[slide].desc}
+                            </p>
+                        </div>
 
                         {/* Dots */}
                         <div className="flex gap-2 mb-8">
                             {slides.map((_, i) => (
-                                <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${i === slide ? (theme === 'dark' ? 'bg-white w-4' : 'bg-black w-4') : (theme === 'dark' ? 'bg-white/20' : 'bg-black/20')}`} />
+                                <div key={i} className={`h-2 rounded-full transition-all duration-500 ease-spring ${i === slide ? (theme === 'dark' ? 'bg-white w-6' : 'bg-black w-6') : (theme === 'dark' ? 'bg-white/20 w-2' : 'bg-black/20 w-2')}`} />
                             ))}
                         </div>
 
