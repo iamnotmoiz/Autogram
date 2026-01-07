@@ -87,7 +87,7 @@
             Shield, Smartphone, Check, Play, Square, History, Hourglass, Zap, Key, ExternalLink, AlertTriangle, HelpCircle, ArrowRight, Film, Info, Ghost
         } from 'lucide-react';
 
-        // --- Shared Hooks & Utilities ---
+        // --- 1. Shared Hooks ---
         const usePickerEffects = () => {
             const audioContextRef = useRef(null);
             const playClick = useCallback(() => {
@@ -112,13 +112,13 @@
             return playClick;
         };
 
-        // --- Shared UI Components ---
+        // --- 2. Basic UI Components (No dependencies) ---
         const LoadingScreen = () => {
             return (
                 <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center font-sans">
                     <div className="relative">
-                        <div className="w-24 h-24 bg-purple-600 rounded-full blur-xl animate-pulse-glow absolute top-0 left-0"></div>
-                        <div className="w-24 h-24 bg-purple-600 rounded-[2rem] flex items-center justify-center relative z-10 shadow-2xl">
+                        <div className="w-24 h-24 bg-gradient-to-tr from-indigo-500 to-fuchsia-500 rounded-full blur-xl animate-pulse-glow absolute top-0 left-0"></div>
+                        <div className="w-24 h-24 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] flex items-center justify-center relative z-10 shadow-2xl">
                              <Ghost className="text-white w-10 h-10 animate-bounce" />
                         </div>
                     </div>
@@ -129,6 +129,34 @@
                 </div>
             );
         };
+
+        const GlassStat = ({ icon: Icon, label, value, trend, color, theme }) => {
+            const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/5' : 'bg-white/60 border-black/5';
+            const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
+            const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
+            return (
+                <div className={`${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group`}>
+                    <div className={`absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity ${color}`}><Icon size={48} /></div>
+                    <div className="relative z-10">
+                        <div className={`text-3xl font-bold mb-1 ${textMain}`}>{value}</div>
+                        <div className={`text-sm font-medium mb-4 ${textMuted}`}>{label}</div>
+                        <div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'} ${color}`}><TrendingUp size={12} /> {trend}</div>
+                    </div>
+                </div>
+            )
+        };
+
+        const StyleBar = ({ label, percent, color, theme }) => (
+            <div>
+                <div className="flex justify-between text-xs font-bold mb-2">
+                    <span className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>{label}</span>
+                    <span className={theme === 'dark' ? 'text-white' : 'text-neutral-900'}>{percent}</span>
+                </div>
+                <div className={`h-3 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-neutral-200 border-black/5'}`}>
+                    <div className={`h-full ${color} rounded-full`} style={{ width: percent }}></div>
+                </div>
+            </div>
+        );
 
         const NavItem = ({ id, icon: Icon, label, count, active, onClick, theme }) => {
             const activeClass = theme === 'dark' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-black text-white shadow-lg shadow-black/10';
@@ -158,34 +186,6 @@
             </button>
         );
 
-        const GlassStat = ({ icon: Icon, label, value, trend, color, theme }) => {
-            const glassClass = theme === 'dark' ? 'bg-white/10 border-white/5' : 'bg-white/60 border-black/5';
-            const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
-            const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
-            return (
-                <div className={`${glassClass} backdrop-blur-xl border p-6 rounded-[32px] relative overflow-hidden group`}>
-                    <div className={`absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity ${color}`}><Icon size={48} /></div>
-                    <div className="relative z-10">
-                        <div className={`text-3xl font-bold mb-1 ${textMain}`}>{value}</div>
-                        <div className={`text-sm font-medium mb-4 ${textMuted}`}>{label}</div>
-                        <div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'} ${color}`}><TrendingUp size={12} /> {trend}</div>
-                    </div>
-                </div>
-            )
-        };
-
-        const StyleBar = ({ label, percent, color, theme }) => (
-            <div>
-                <div className="flex justify-between text-xs font-bold mb-2">
-                    <span className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>{label}</span>
-                    <span className={theme === 'dark' ? 'text-white' : 'text-neutral-900'}>{percent}</span>
-                </div>
-                <div className={`h-3 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-neutral-200 border-black/5'}`}>
-                    <div className={`h-full ${color} rounded-full`} style={{ width: percent }}></div>
-                </div>
-            </div>
-        );
-
         const PostCard = ({ post, isPosted, onDelete, glassClass, textTitle, textMuted }) => (
             <div key={post.id} className={`${glassClass} backdrop-blur-xl border p-4 rounded-[24px] flex gap-4 group hover:scale-[1.02] transition-all duration-300 ease-spring`}>
                 <div className="w-24 h-24 shrink-0 rounded-2xl overflow-hidden shadow-lg bg-neutral-800">
@@ -205,6 +205,8 @@
             </div>
         );
 
+        // --- 3. Complex UI Components (Depend on basic components/hooks) ---
+        
         const RouletteWheel = ({ items, selectedValue, onSelect, label, theme }) => {
             const containerRef = useRef(null);
             const playClick = usePickerEffects();
@@ -253,8 +255,6 @@
                 </div>
             );
         };
-
-        // --- Complex Components (Modals, Systems) ---
 
         const TooltipSystem = ({ active, onComplete, onStepChange }) => {
             const [step, setStep] = useState(0);
@@ -582,9 +582,8 @@
 
             const bgClass = theme === 'dark' ? 'bg-neutral-900 border-white/10' : 'bg-white border-black/10';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
-            const textMuted = theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400';
             const activeChip = theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white';
-            const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400 hover:bg-white/10' : 'bg-black/5 text-neutral-600 hover:bg-black/10';
+            const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400' : 'bg-black/5 text-neutral-600';
 
             return (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4 animate-scale-in">
@@ -695,6 +694,20 @@
                     <button onClick={onShowTutorial} className={`w-full text-center text-xs font-bold uppercase tracking-widest ${textMuted} hover:underline`}>Show Tutorial Again</button>
                 </div>
             );
+        };
+
+        const Analytics = ({ user, theme }) => {
+            const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/5' : 'bg-white/60 border-black/5';
+            const textTitle = theme === 'dark' ? 'text-white' : 'text-neutral-900';
+            const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
+
+            return (
+            <div className="animate-in fade-in duration-700 space-y-8">
+                <div><h2 className={`text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r ${theme === 'dark' ? 'from-white to-neutral-500' : 'from-neutral-900 to-neutral-500'}`}>Insights</h2><p className={`${textMuted} mt-1`}>Growth metrics.</p></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6"><GlassStat icon={Users} label="Followers" value={user.followers} trend="+12%" color="text-indigo-400" theme={theme} /><GlassStat icon={TrendingUp} label="Engagement" value="8.4%" trend="+2.1%" color="text-fuchsia-400" theme={theme} /><GlassStat icon={Eye} label="Reach" value="124k" trend="+5.4%" color="text-blue-400" theme={theme} /></div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"><div className={`lg:col-span-2 ${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`}><h3 className={`font-bold mb-8 text-lg ${textTitle}`}>Weekly Engagement</h3><div className="h-64 flex items-end justify-between gap-4 px-2">{[45, 60, 35, 80, 70, 90, 100].map((h, i) => (<div key={i} className="flex-1 flex flex-col items-center gap-3 group"><div className={`w-full rounded-t-2xl relative overflow-hidden h-full ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}><div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-600 to-fuchsia-600 rounded-t-2xl transition-all duration-1000 ease-out opacity-80 group-hover:opacity-100" style={{ height: `${h}%` }}></div></div><span className={`text-xs font-medium ${textMuted}`}>{['M','T','W','T','F','S','S'][i]}</span></div>))}</div></div><div className={`${glassClass} backdrop-blur-xl border p-8 rounded-[32px] shadow-lg`}><h3 className={`font-bold mb-6 text-lg ${textTitle}`}>Top Aesthetics</h3><div className="space-y-6"><StyleBar label="Hyper Realistic" percent="92%" color="bg-indigo-500" theme={theme} /><StyleBar label="Cyberpunk" percent="68%" color="bg-fuchsia-500" theme={theme} /><StyleBar label="Cinematic" percent="45%" color="bg-blue-500" theme={theme} /></div></div></div>
+            </div>
+            )
         };
 
         const App = () => {
