@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AutoGram AI - Demo</title>
     
     <!-- 1. Tailwind CSS -->
@@ -45,6 +45,13 @@
         body {
             background-color: black; 
             margin: 0;
+            /* Prevent bounce effect on iOS */
+            overscroll-behavior-y: none;
+        }
+        /* Glass gradient for roulette fade */
+        .roulette-mask {
+            mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
         }
     </style>
 </head>
@@ -59,7 +66,7 @@
             Instagram, Wand2, Calendar, Settings, LogOut, CheckCircle2, 
             Image as ImageIcon, Send, Loader2, BarChart3, Trash2, TrendingUp, 
             Users, Eye, Clock, Upload, User, Edit3, X, Plus, Moon, Sun, 
-            Shield, Smartphone, Check, Play, Square, History, Hourglass, Zap
+            Shield, Smartphone, Check, Play, Square, History, Hourglass, Zap, Key
         } from 'lucide-react';
 
         const App = () => {
@@ -67,8 +74,8 @@
             const [activeTab, setActiveTab] = useState('generate');
             const [user, setUser] = useState(null);
             const [theme, setTheme] = useState('dark'); 
+            const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
             
-            // State for managing app data
             const [scheduledPosts, setScheduledPosts] = useState([
                 {
                 id: 1,
@@ -103,16 +110,44 @@
                 setIsConnected(true);
             };
 
+            const handleSaveApiKey = (key) => {
+                setApiKey(key);
+                localStorage.setItem('gemini_api_key', key);
+            };
+
             const handleAddPost = (newPost) => {
                 setScheduledPosts(prev => [...prev, newPost].sort((a, b) => new Date(a.date) - new Date(b.date)));
                 setActiveTab('schedule');
             };
 
+            // Helper to generate caption using Gemini
+            const generateGeminiCaption = async (topic, style) => {
+                if (!apiKey) return null;
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{
+                                    text: `Write a short, engaging Instagram caption for a photo about "${topic}" with a visual style of "${style}". Include 3-5 relevant hashtags. Return only the plain text of the caption.`
+                                }]
+                            }]
+                        })
+                    });
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (e) {
+                    console.error("Gemini API Error", e);
+                    return null;
+                }
+            };
+
             // Triggered when Auto-Pilot timer hits 0
-            const handleAutoPost = () => {
+            const handleAutoPost = async () => {
                 const now = new Date();
                 
-                // Enhanced randomization to ensure variety while keeping the same topic
+                // Enhanced randomization
                 const angles = ["wide angle shot", "close up macro", "aerial view", "low angle", "eye level", "dutch angle", "isometric view"];
                 const lighting = ["cinematic lighting", "golden hour", "neon lights", "studio lighting", "natural soft light", "dramatic shadows", "volumetric lighting"];
                 const styles = ["hyper realistic", "highly detailed", "photorealistic", "4k", "8k", "sharp focus", "vivid colors"];
@@ -120,16 +155,18 @@
                 const randomAngle = angles[Math.floor(Math.random() * angles.length)];
                 const randomLight = lighting[Math.floor(Math.random() * lighting.length)];
                 const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-                
                 const seed = Math.floor(Math.random() * 1000000);
 
-                // Construct a rich prompt using the persistent user topic + random modifiers
                 const prompt = `${autoPilot.topic}, ${randomAngle}, ${randomLight}, ${randomStyle}`;
+
+                let captionText = `🤖 Auto-Pilot: ${autoPilot.topic} \n\nGenerated automatically via AutoGram. #AI #AutoPilot #${autoPilot.topic.replace(/\s+/g, '')}`;
+                const geminiCaption = await generateGeminiCaption(autoPilot.topic, randomStyle);
+                if (geminiCaption) captionText = geminiCaption;
 
                 const newPost = {
                     id: Date.now(),
                     imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1350&nologo=true&seed=${seed}`,
-                    caption: `🤖 Auto-Pilot: ${autoPilot.topic} \n\nGenerated automatically via AutoGram. #AI #AutoPilot #${autoPilot.topic.replace(/\s+/g, '')}`,
+                    caption: captionText,
                     date: now.toISOString(),
                     status: 'posted'
                 };
@@ -162,16 +199,17 @@
 
             return (
                 <div className={`min-h-screen font-sans selection:bg-indigo-500 selection:text-white flex flex-col md:flex-row relative overflow-hidden transition-colors duration-500 ${bgClass}`}>
-                {/* iOS 26 Background Mesh Gradients */}
+                
+                {/* Background */}
                 <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
                     <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] animate-pulse-slow ${theme === 'dark' ? 'bg-indigo-600/20' : 'bg-indigo-400/20'}`}></div>
                     <div className={`absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] animate-pulse-slow delay-1000 ${theme === 'dark' ? 'bg-fuchsia-600/20' : 'bg-fuchsia-400/20'}`}></div>
                     <div className={`absolute top-[20%] right-[20%] w-[30%] h-[30%] rounded-full blur-[100px] ${theme === 'dark' ? 'bg-blue-600/10' : 'bg-blue-400/10'}`}></div>
                 </div>
 
-                {/* Auto-Pilot Notification Bar (Dynamic Island style) */}
+                {/* Auto-Pilot Notification Bar */}
                 {autoPilot.active && (
-                    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md">
+                    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md px-4">
                         <AutoPilotStatus 
                             autoPilot={autoPilot} 
                             theme={theme} 
@@ -181,7 +219,7 @@
                     </div>
                 )}
 
-                {/* Desktop Sidebar (Floating Glass) */}
+                {/* Desktop Sidebar */}
                 <aside className={`hidden md:flex flex-col w-24 lg:w-72 fixed left-4 top-4 bottom-4 z-50 backdrop-blur-2xl border rounded-[32px] shadow-2xl p-6 transition-all duration-300 ${glassClass}`}>
                     <div className="flex items-center gap-3 mb-10 pl-2">
                     <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -209,14 +247,13 @@
                     </div>
                     </div>
                     
-                    {/* Tablet Icon Only Footer */}
                     <div className="lg:hidden mt-auto flex justify-center">
                         <img src={user.avatar} className={`w-8 h-8 rounded-full object-cover border ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`} alt="Profile" />
                     </div>
                 </aside>
 
-                {/* Main Content Area */}
-                <main className="flex-1 md:ml-32 lg:ml-80 p-4 md:p-6 pb-28 md:pb-6 relative z-10 h-screen overflow-y-auto no-scrollbar scroll-smooth">
+                {/* Main Content Area - Increased pb-40 to prevent content hiding behind dock */}
+                <main className="flex-1 md:ml-32 lg:ml-80 p-4 md:p-6 pb-40 md:pb-6 relative z-10 h-screen overflow-y-auto no-scrollbar scroll-smooth">
                     <div className="max-w-6xl mx-auto space-y-8 pt-12 md:pt-4">
                     {activeTab === 'generate' && (
                         <Generator 
@@ -228,16 +265,17 @@
                             setShowAutoPilotModal={setShowAutoPilotModal}
                             setPendingAutoTopic={setPendingAutoTopic}
                             pendingAutoTopic={pendingAutoTopic}
+                            generateGeminiCaption={generateGeminiCaption}
                         />
                     )}
                     {activeTab === 'schedule' && <Scheduler posts={scheduledPosts} onDelete={handleDeletePost} theme={theme} />}
                     {activeTab === 'analytics' && <Analytics user={user} theme={theme} />}
-                    {activeTab === 'settings' && <SettingsTab user={user} theme={theme} toggleTheme={toggleTheme} onLogout={() => setIsConnected(false)} />}
+                    {activeTab === 'settings' && <SettingsTab user={user} theme={theme} toggleTheme={toggleTheme} onLogout={() => setIsConnected(false)} apiKey={apiKey} onSaveApiKey={handleSaveApiKey} />}
                     </div>
                 </main>
 
-                {/* Mobile Bottom Navigation (Floating Capsule) */}
-                <nav className={`md:hidden fixed bottom-6 left-4 right-4 h-16 backdrop-blur-xl border rounded-full shadow-2xl z-50 flex items-center justify-around px-2 ${glassClass} ${theme === 'dark' ? 'bg-neutral-900/80' : 'bg-white/80'}`}>
+                {/* Mobile Bottom Navigation */}
+                <nav className={`md:hidden fixed bottom-6 left-4 right-4 h-16 backdrop-blur-xl border rounded-full shadow-2xl z-50 flex items-center justify-around px-2 ${glassClass} ${theme === 'dark' ? 'bg-neutral-900/90' : 'bg-white/90'}`}>
                     <MobileNavItem icon={Wand2} active={activeTab === 'generate'} onClick={() => setActiveTab('generate')} theme={theme} />
                     <MobileNavItem icon={Calendar} active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} count={scheduledPosts.length} theme={theme} />
                     <MobileNavItem icon={BarChart3} active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} theme={theme} />
@@ -265,7 +303,57 @@
             );
         };
 
-        // --- Sub-Components ---
+        // --- Roulette Component for iOS style Selection ---
+        const RouletteWheel = ({ items, selectedValue, onSelect, label, theme }) => {
+            const containerRef = useRef(null);
+            const itemHeight = 40; // Height of each item in pixels
+
+            // Initial Scroll
+            useEffect(() => {
+                if (containerRef.current) {
+                    const selectedIndex = items.findIndex(i => i.value === selectedValue);
+                    if (selectedIndex >= 0) {
+                        containerRef.current.scrollTop = selectedIndex * itemHeight;
+                    }
+                }
+            }, []);
+
+            return (
+                <div className="flex flex-col items-center relative group">
+                    {label && <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-500 mb-2">{label}</span>}
+                    <div className="relative h-32 w-16 overflow-hidden">
+                        {/* Gradient Mask for 3D effect */}
+                        <div className="absolute inset-0 pointer-events-none z-20 roulette-mask"></div>
+                        
+                        {/* Selection Bar */}
+                        <div className={`absolute top-1/2 -translate-y-1/2 left-0 right-0 h-8 rounded-lg pointer-events-none z-10 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}></div>
+
+                        <div 
+                            ref={containerRef}
+                            className="h-full w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative z-0"
+                            style={{ scrollBehavior: 'smooth' }}
+                        >
+                            <div className="h-[44px]"></div> {/* Spacer Top */}
+                            {items.map((item) => (
+                                <div 
+                                    key={item.value} 
+                                    onClick={() => {
+                                        onSelect(item.value);
+                                        // Simple scroll adjustment on click
+                                        const idx = items.findIndex(i => i.value === item.value);
+                                        if (containerRef.current) containerRef.current.scrollTop = idx * itemHeight;
+                                    }}
+                                    className={`h-[40px] flex items-center justify-center snap-center cursor-pointer transition-all duration-200 select-none ${item.value === selectedValue ? (theme === 'dark' ? 'text-white font-bold scale-110' : 'text-black font-bold scale-110') : 'text-neutral-500 scale-90'}`}
+                                >
+                                    {item.label}
+                                </div>
+                            ))}
+                            <div className="h-[44px]"></div> {/* Spacer Bottom */}
+                        </div>
+                    </div>
+                </div>
+            )
+        }
 
         const AutoPilotStatus = ({ autoPilot, theme, onPostTrigger, onStop }) => {
             const [timeLeft, setTimeLeft] = useState("");
@@ -330,6 +418,10 @@
             const [minutes, setMinutes] = useState(0);
             const [seconds, setSeconds] = useState(30);
 
+            // Helpers for Roulette Items
+            const hourItems = Array.from({length: 25}, (_, i) => ({ value: i, label: i.toString() }));
+            const minSecItems = Array.from({length: 60}, (_, i) => ({ value: i, label: i.toString().padStart(2, '0') }));
+
             const handleStart = () => {
                 const totalMs = ((hours * 60 * 60) + (minutes * 60) + seconds) * 1000;
                 if (totalMs < 30000) {
@@ -341,11 +433,10 @@
 
             const bgClass = theme === 'dark' ? 'bg-neutral-900 border-white/10' : 'bg-white border-black/10';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
-            const textMuted = theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400';
 
             return (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose}></div>
                     <div className={`${bgClass} border p-6 md:p-8 rounded-t-[32px] md:rounded-[32px] w-full max-w-md shadow-2xl relative animate-in slide-in-from-bottom-10 duration-300`}>
                         <div className="flex justify-between items-center mb-6">
                             <h3 className={`text-2xl font-bold ${textMain}`}>Auto-Pilot Frequency</h3>
@@ -354,53 +445,18 @@
                             </button>
                         </div>
 
-                        <div className="space-y-6">
+                        <div className="space-y-8">
                             <div className="bg-blue-500/10 p-4 rounded-2xl flex gap-3 text-sm text-blue-400 border border-blue-500/20">
                                 <Zap className="shrink-0 mt-0.5" size={18} />
-                                <p>Set how often AutoGram should generate and post content. Minimum 30s.</p>
+                                <p>Set generation interval. Minimum 30s.</p>
                             </div>
 
-                            <div>
-                                <div className={`rounded-2xl p-4 flex items-center justify-center gap-4 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
-                                    {/* Hours */}
-                                    <div className="flex flex-col items-center gap-2">
-                                        <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Hours</label>
-                                        <input 
-                                            type="number" 
-                                            min="0" 
-                                            max="24"
-                                            value={hours}
-                                            onChange={(e) => setHours(Math.max(0, parseInt(e.target.value) || 0))}
-                                            className={`w-16 h-16 rounded-xl text-center text-2xl font-bold outline-none border transition-colors ${theme === 'dark' ? 'bg-neutral-800 border-white/10 focus:border-indigo-500' : 'bg-white border-black/10 focus:border-indigo-500'}`}
-                                        />
-                                    </div>
-                                    <span className="text-2xl font-light text-neutral-500 mt-6">:</span>
-                                    {/* Minutes */}
-                                    <div className="flex flex-col items-center gap-2">
-                                        <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Mins</label>
-                                        <input 
-                                            type="number" 
-                                            min="0" 
-                                            max="59"
-                                            value={minutes}
-                                            onChange={(e) => setMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
-                                            className={`w-16 h-16 rounded-xl text-center text-2xl font-bold outline-none border transition-colors ${theme === 'dark' ? 'bg-neutral-800 border-white/10 focus:border-indigo-500' : 'bg-white border-black/10 focus:border-indigo-500'}`}
-                                        />
-                                    </div>
-                                    <span className="text-2xl font-light text-neutral-500 mt-6">:</span>
-                                    {/* Seconds */}
-                                    <div className="flex flex-col items-center gap-2">
-                                        <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Secs</label>
-                                        <input 
-                                            type="number" 
-                                            min="0" 
-                                            max="59"
-                                            value={seconds}
-                                            onChange={(e) => setSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
-                                            className={`w-16 h-16 rounded-xl text-center text-2xl font-bold outline-none border transition-colors ${theme === 'dark' ? 'bg-neutral-800 border-white/10 focus:border-indigo-500' : 'bg-white border-black/10 focus:border-indigo-500'}`}
-                                        />
-                                    </div>
-                                </div>
+                            <div className={`rounded-3xl p-6 flex items-center justify-center gap-6 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
+                                <RouletteWheel items={hourItems} selectedValue={hours} onSelect={setHours} label="Hours" theme={theme} />
+                                <div className="h-16 w-[1px] bg-white/10"></div>
+                                <RouletteWheel items={minSecItems} selectedValue={minutes} onSelect={setMinutes} label="Mins" theme={theme} />
+                                <div className="h-16 w-[1px] bg-white/10"></div>
+                                <RouletteWheel items={minSecItems} selectedValue={seconds} onSelect={setSeconds} label="Secs" theme={theme} />
                             </div>
 
                             <button 
@@ -468,9 +524,17 @@
                     ) : (
                         <form onSubmit={handleCustomLogin} className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                             <div className="space-y-3">
-                                <input type="text" required className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-sm" placeholder="Instagram Username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
-                                <input type="text" required className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-sm" placeholder="Follower Count (e.g. 10k)" value={formData.followers} onChange={e => setFormData({...formData, followers: e.target.value})} />
-                                <input type="url" className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-sm" placeholder="Avatar URL (Optional)" value={formData.avatar} onChange={e => setFormData({...formData, avatar: e.target.value})} />
+                                <input 
+                                    type="text" 
+                                    required 
+                                    className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" 
+                                    style={{fontSize: '16px'}} 
+                                    placeholder="Instagram Username" 
+                                    value={formData.username} 
+                                    onChange={e => setFormData({...formData, username: e.target.value})} 
+                                />
+                                <input type="text" required className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" style={{fontSize: '16px'}} placeholder="Follower Count (e.g. 10k)" value={formData.followers} onChange={e => setFormData({...formData, followers: e.target.value})} />
+                                <input type="url" className="w-full bg-black/20 border border-white/5 rounded-2xl h-14 px-5 text-white placeholder-neutral-500 focus:bg-black/40 focus:border-white/20 outline-none transition-all text-base" style={{fontSize: '16px'}} placeholder="Avatar URL (Optional)" value={formData.avatar} onChange={e => setFormData({...formData, avatar: e.target.value})} />
                             </div>
                             <button type="submit" disabled={loading} className="w-full h-14 bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:opacity-90 text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-indigo-500/20">
                                 {loading ? <Loader2 className="animate-spin" /> : <span>Launch</span>}
@@ -482,7 +546,7 @@
             );
         };
 
-        const Generator = ({ user, onSchedule, theme, autoPilot, setAutoPilot, setShowAutoPilotModal, setPendingAutoTopic, pendingAutoTopic }) => {
+        const Generator = ({ user, onSchedule, theme, autoPilot, setAutoPilot, setShowAutoPilotModal, setPendingAutoTopic, pendingAutoTopic, generateGeminiCaption }) => {
             const [topic, setTopic] = useState("");
             const [style, setStyle] = useState("Hyper Realistic");
             const [isGenerating, setIsGenerating] = useState(false);
@@ -505,25 +569,33 @@
                 }
             };
 
-            const handleGenerate = () => {
+            const handleGenerate = async () => {
                 if (!topic) return;
                 setIsGenerating(true);
                 setResult(null);
 
-                setTimeout(() => {
                 const seed = Math.floor(Math.random() * 10000);
                 const facePrompt = faceImage ? "resembling the uploaded reference photo, " : "";
                 const prompt = `hyper realistic photography, ${facePrompt}${topic}, ${style}, 8k, cinematic lighting, highly detailed --no text`;
                 
-                const generatedCaption = `✨ ${topic.charAt(0).toUpperCase() + topic.slice(1)} vibes today.\n\nGenerated with AI. What do you think of this view?\n\n#${topic.replace(/\s+/g, '')} #AIArt #${style.replace(/\s+/g, '')} #InstaDaily`;
+                // Fallback caption
+                let generatedCaption = `✨ ${topic.charAt(0).toUpperCase() + topic.slice(1)} vibes today.\n\nGenerated with AI. What do you think of this view?\n\n#${topic.replace(/\s+/g, '')} #AIArt #${style.replace(/\s+/g, '')} #InstaDaily`;
                 
-                setResult({
-                    imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1350&nologo=true&seed=${seed}`,
-                    caption: generatedCaption,
-                });
-                setEditedCaption(generatedCaption);
-                setIsGenerating(false);
-                }, 2500);
+                // Try Gemini
+                const geminiCaption = await generateGeminiCaption(topic, style);
+                if (geminiCaption) {
+                    generatedCaption = geminiCaption;
+                }
+
+                // Simulate image generation delay
+                setTimeout(() => {
+                    setResult({
+                        imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1350&nologo=true&seed=${seed}`,
+                        caption: generatedCaption,
+                    });
+                    setEditedCaption(generatedCaption);
+                    setIsGenerating(false);
+                }, 2000);
             };
 
             const confirmSchedule = (date) => {
@@ -560,24 +632,25 @@
                         <p className={`${textMuted} mt-1`}>Design viral content in seconds.</p>
                     </div>
                     
-                    <div className={`${glassClass} backdrop-blur-md border p-1.5 pl-4 rounded-full flex items-center gap-4 shadow-sm`}>
+                    <div className={`${glassClass} backdrop-blur-md border p-1.5 pl-4 pr-1.5 rounded-full flex items-center justify-between gap-4 shadow-sm w-full md:w-auto`}>
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${autoPilot.active ? 'bg-green-500 animate-pulse' : 'bg-neutral-400'}`}></div>
                             <span className={`text-xs font-medium ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>Auto-Pilot</span>
                         </div>
                         
                         {autoPilot.active ? (
-                            <button onClick={() => setAutoPilot(prev => ({...prev, active: false, nextPostTime: null}))} className={`bg-red-500/10 hover:bg-red-500/20 text-red-500 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors`}>Stop</button>
+                            <button onClick={() => setAutoPilot(prev => ({...prev, active: false, nextPostTime: null}))} className={`bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded-full text-xs font-semibold transition-colors`}>Stop</button>
                         ) : (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-1 justify-end">
                                     <input 
                                         type="text" 
                                         placeholder="Topic..." 
                                         value={pendingAutoTopic} 
                                         onChange={(e) => setPendingAutoTopic(e.target.value)} 
-                                        className={`bg-transparent text-xs w-20 outline-none ${theme === 'dark' ? 'text-white placeholder-neutral-600' : 'text-black placeholder-neutral-400'}`} 
+                                        className={`bg-transparent text-sm w-full md:w-20 outline-none text-right mr-2 ${theme === 'dark' ? 'text-white placeholder-neutral-600' : 'text-black placeholder-neutral-400'}`}
+                                        style={{ fontSize: '16px' }} // No zoom on mobile
                                     />
-                                    <button onClick={triggerAutoPilotConfig} className={`${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} px-3 py-1.5 rounded-full text-xs font-bold hover:opacity-80 transition-opacity`}>Start</button>
+                                    <button onClick={triggerAutoPilotConfig} className={`${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} px-4 py-2 rounded-full text-xs font-bold hover:opacity-80 transition-opacity whitespace-nowrap`}>Start</button>
                                 </div>
                         )}
                     </div>
@@ -594,6 +667,7 @@
                                 onChange={(e) => setTopic(e.target.value)}
                                 placeholder="Describe your vision..."
                                 className={`w-full rounded-3xl p-5 text-lg outline-none h-32 resize-none transition-all shadow-inner border ${inputClass}`}
+                                style={{fontSize: '16px'}}
                             />
                         </div>
                         
@@ -720,9 +794,10 @@
             const [selectedMinute, setSelectedMinute] = useState(0);
             const [amPm, setAmPm] = useState('PM');
 
-            const days = ['Today', 'Tomorrow', 'In 2 Days', 'In 3 Days', 'In 4 Days'];
-            const hours = Array.from({length: 12}, (_, i) => i + 1);
-            const minutes = [0, 15, 30, 45];
+            const dayItems = ['Today', 'Tomorrow', 'In 2 Days', 'In 3 Days', 'In 4 Days'].map((label, i) => ({ value: i, label }));
+            const hourItems = Array.from({length: 12}, (_, i) => ({ value: i + 1, label: (i + 1).toString() }));
+            const minItems = [0, 15, 30, 45].map(m => ({ value: m, label: m.toString().padStart(2, '0') }));
+            const amPmItems = [{value: 'AM', label: 'AM'}, {value: 'PM', label: 'PM'}];
 
             const handleConfirm = () => {
                 const date = new Date();
@@ -736,13 +811,10 @@
 
             const bgClass = theme === 'dark' ? 'bg-neutral-900 border-white/10' : 'bg-white border-black/10';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
-            const textMuted = theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400';
-            const activeChip = theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white';
-            const inactiveChip = theme === 'dark' ? 'bg-white/5 text-neutral-400 hover:bg-white/10' : 'bg-black/5 text-neutral-600 hover:bg-black/10';
 
             return (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose}></div>
                     <div className={`${bgClass} border p-6 md:p-8 rounded-t-[32px] md:rounded-[32px] w-full max-w-md shadow-2xl relative animate-in slide-in-from-bottom-10 duration-300`}>
                         <div className="flex justify-between items-center mb-6">
                             <h3 className={`text-2xl font-bold ${textMain}`}>Schedule</h3>
@@ -751,40 +823,16 @@
                             </button>
                         </div>
 
-                        <div className="space-y-6">
+                        <div className="space-y-8">
                             <div>
-                                <label className={`text-xs font-bold uppercase tracking-widest mb-3 block ${textMuted}`}>Date</label>
-                                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                                    {days.map((d, i) => (
-                                        <button key={d} onClick={() => setSelectedDate(i)} className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${selectedDate === i ? activeChip : inactiveChip}`}>
-                                            {d}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className={`text-xs font-bold uppercase tracking-widest mb-3 block ${textMuted}`}>Time</label>
-                                <div className={`rounded-2xl p-4 flex items-center justify-between ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
-                                    <div className="flex flex-col items-center gap-1 h-24 overflow-y-auto no-scrollbar snap-y snap-mandatory w-16">
-                                        {hours.map(h => (
-                                            <button key={h} onClick={() => setSelectedHour(h)} className={`snap-center py-1 text-xl font-bold transition-opacity ${selectedHour === h ? textMain : `${textMuted} opacity-30`}`}>
-                                                {h}
-                                            </button>
-                                        ))}
+                                <div className={`rounded-3xl p-6 flex items-center justify-center gap-3 ${theme === 'dark' ? 'bg-black/30' : 'bg-neutral-100'}`}>
+                                    <div className="flex-1">
+                                        <RouletteWheel items={dayItems} selectedValue={selectedDate} onSelect={setSelectedDate} label="Date" theme={theme} />
                                     </div>
-                                    <span className={`text-2xl font-light pb-2 ${textMuted}`}>:</span>
-                                    <div className="flex flex-col items-center gap-1 h-24 overflow-y-auto no-scrollbar snap-y snap-mandatory w-16">
-                                        {minutes.map(m => (
-                                            <button key={m} onClick={() => setSelectedMinute(m)} className={`snap-center py-1 text-xl font-bold transition-opacity ${selectedMinute === m ? textMain : `${textMuted} opacity-30`}`}>
-                                                {m.toString().padStart(2, '0')}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className={`flex flex-col gap-1 bg-black/10 rounded-lg p-1 ${theme === 'light' && 'bg-white'}`}>
-                                        <button onClick={() => setAmPm('AM')} className={`px-2 py-1 rounded-md text-xs font-bold ${amPm === 'AM' ? activeChip : textMuted}`}>AM</button>
-                                        <button onClick={() => setAmPm('PM')} className={`px-2 py-1 rounded-md text-xs font-bold ${amPm === 'PM' ? activeChip : textMuted}`}>PM</button>
-                                    </div>
+                                    <div className="w-[1px] h-16 bg-white/10"></div>
+                                    <RouletteWheel items={hourItems} selectedValue={selectedHour} onSelect={setSelectedHour} label="Hr" theme={theme} />
+                                    <RouletteWheel items={minItems} selectedValue={selectedMinute} onSelect={setSelectedMinute} label="Min" theme={theme} />
+                                    <RouletteWheel items={amPmItems} selectedValue={amPm} onSelect={setAmPm} label="Meridiem" theme={theme} />
                                 </div>
                             </div>
 
@@ -904,11 +952,17 @@
             )
         };
 
-        const SettingsTab = ({ user, theme, toggleTheme, onLogout }) => {
+        const SettingsTab = ({ user, theme, toggleTheme, onLogout, apiKey, onSaveApiKey }) => {
             const glassClass = theme === 'dark' ? 'bg-neutral-900/40 border-white/5' : 'bg-white/60 border-black/5';
             const textMain = theme === 'dark' ? 'text-white' : 'text-neutral-900';
             const textMuted = theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500';
             const itemHover = theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-black/5';
+            const [keyInput, setKeyInput] = useState(apiKey);
+
+            const handleSave = () => {
+                onSaveApiKey(keyInput);
+                alert("API Key Saved!");
+            }
 
             return (
                 <div className="animate-in fade-in duration-700 space-y-8 max-w-2xl mx-auto">
@@ -918,6 +972,36 @@
                     </div>
 
                     <div className={`${glassClass} backdrop-blur-xl border rounded-[32px] overflow-hidden`}>
+                        
+                        <div className="p-6 border-b border-white/5">
+                            <h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted} mb-4`}>AI Configuration</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className={`block text-xs font-bold uppercase tracking-widest mb-2 ${textMuted}`}>Gemini API Key</label>
+                                    <div className="flex gap-2">
+                                        <div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-white border-black/10'}`}>
+                                            <Key size={16} className={textMuted} />
+                                            <input 
+                                                type="password" 
+                                                value={keyInput}
+                                                onChange={(e) => setKeyInput(e.target.value)}
+                                                placeholder="Paste your Google AI Studio Key"
+                                                className={`bg-transparent w-full outline-none text-sm ${textMain}`}
+                                                style={{fontSize: '16px'}}
+                                            />
+                                        </div>
+                                        <button 
+                                            onClick={handleSave}
+                                            className={`px-4 py-2 rounded-2xl font-bold text-sm transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-neutral-200' : 'bg-black text-white hover:bg-neutral-800'}`}
+                                        >
+                                            Save
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-neutral-500 mt-2 ml-1">Key is stored locally in your browser. Required for smart captions.</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="p-6 border-b border-white/5">
                             <h3 className={`text-sm font-bold uppercase tracking-widest ${textMuted} mb-4`}>Appearance</h3>
                             <div className={`flex items-center justify-between p-3 rounded-2xl transition-colors cursor-pointer ${itemHover}`} onClick={toggleTheme}>
